@@ -427,16 +427,88 @@ class Simple_Post_Form {
 	public function delete_form( $form_id ) {
 		global $wpdb;
 
-		// Delete form fields.
-		$wpdb->delete( $wpdb->prefix . 'spf_form_fields', array( 'form_id' => $form_id ) );
+		$forms_table = $wpdb->prefix . 'spf_forms';
+		$fields_table = $wpdb->prefix . 'spf_fields';
+		$submissions_table = $wpdb->prefix . 'spf_submissions';
 
-		// Delete form submissions.
-		$wpdb->delete( $wpdb->prefix . 'spf_submissions', array( 'form_id' => $form_id ) );
+		// Delete form fields.
+		$wpdb->delete( $fields_table, array( 'form_id' => $form_id ) );
+
+		// Delete submissions.
+		$wpdb->delete( $submissions_table, array( 'form_id' => $form_id ) );
 
 		// Delete form.
-		$wpdb->delete( $wpdb->prefix . 'spf_forms', array( 'id' => $form_id ) );
+		return $wpdb->delete( $forms_table, array( 'id' => $form_id ) );
+	}
 
-		return true;
+	/**
+	 * Duplicate form.
+	 *
+	 * @param int $form_id Form ID to duplicate.
+	 * @return int|false New form ID on success, false on failure.
+	 */
+	public function duplicate_form( $form_id ) {
+		global $wpdb;
+
+		// Get original form.
+		$form = $this->get_form( $form_id );
+		if ( ! $form ) {
+			return false;
+		}
+
+		// Get original fields.
+		$fields = $this->get_form_fields( $form_id );
+
+		// Prepare form data for duplication.
+		$form_data = array(
+			'form_name' => $form->form_name . ' (Copy)',
+			'form_title' => $form->form_title,
+			'form_subject' => $form->form_subject,
+			'recipient_email' => $form->recipient_email,
+			'sender_name' => $form->sender_name,
+			'sender_email' => $form->sender_email,
+			'button_text' => $form->button_text,
+			'button_styles' => $form->button_styles,
+			'modal_button_text' => $form->modal_button_text,
+			'modal_button_styles' => $form->modal_button_styles,
+			'modal_styles' => $form->modal_styles,
+			'use_global_styles' => $form->use_global_styles,
+			'use_reply_to' => $form->use_reply_to,
+			'hide_labels' => $form->hide_labels ?? 0,
+			'debug_mode' => $form->debug_mode ?? 0,
+			'success_message' => $form->success_message,
+			'error_message' => $form->error_message,
+		);
+
+		// Insert new form.
+		$forms_table = $wpdb->prefix . 'spf_forms';
+		$wpdb->insert( $forms_table, $form_data );
+		$new_form_id = $wpdb->insert_id;
+
+		if ( ! $new_form_id ) {
+			return false;
+		}
+
+		// Duplicate fields.
+		if ( ! empty( $fields ) ) {
+			$fields_table = $wpdb->prefix . 'spf_fields';
+			foreach ( $fields as $field ) {
+				$field_data = array(
+					'form_id' => $new_form_id,
+					'field_type' => $field->field_type,
+					'field_label' => $field->field_label,
+					'field_name' => $field->field_name,
+					'field_placeholder' => $field->field_placeholder,
+					'field_required' => $field->field_required,
+					'field_width' => $field->field_width,
+					'field_styles' => $field->field_styles,
+					'field_order' => $field->field_order,
+				);
+				$wpdb->insert( $fields_table, $field_data );
+			}
+		}
+
+		return $new_form_id;
 	}
 
 	/**
@@ -674,5 +746,47 @@ class Simple_Post_Form {
 		$data = json_decode( $body, true );
 		
 		return isset( $data['countryCode'] ) ? $data['countryCode'] : '';
+	}
+
+	/**
+	 * Check if content contains spam keywords.
+	 *
+	 * @param array $field_data Associative array of field data.
+	 * @return string|false Returns matched keyword if found, false otherwise.
+	 */
+	public function contains_spam_keywords( $field_data ) {
+		if ( ! get_option( 'spf_spam_keywords_enabled' ) ) {
+			return false;
+		}
+
+		$keywords_text = get_option( 'spf_spam_keywords', '' );
+		if ( empty( $keywords_text ) ) {
+			return false;
+		}
+
+		// Parse keywords - one per line
+		$keywords = array_filter( array_map( 'trim', explode( "\n", $keywords_text ) ) );
+		if ( empty( $keywords ) ) {
+			return false;
+		}
+
+		// Combine all field values into searchable text
+		$content = implode( ' ', array_values( $field_data ) );
+		$content_lower = strtolower( $content );
+
+		// Check each keyword
+		foreach ( $keywords as $keyword ) {
+			$keyword_lower = strtolower( trim( $keyword ) );
+			if ( empty( $keyword_lower ) ) {
+				continue;
+			}
+
+			// Check if keyword is found in content
+			if ( strpos( $content_lower, $keyword_lower ) !== false ) {
+				return $keyword; // Return the matched keyword
+			}
+		}
+
+		return false;
 	}
 }

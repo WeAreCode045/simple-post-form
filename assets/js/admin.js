@@ -507,6 +507,42 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // Duplicate form
+    $(document).on('click', '.spf-duplicate-form', function() {
+        if (!confirm(spfAdmin.strings.confirmDuplicate)) {
+            return;
+        }
+
+        const $button = $(this);
+        const formId = $button.data('form-id');
+        const originalText = $button.text();
+
+        $button.prop('disabled', true).text('Duplicating...');
+
+        $.ajax({
+            url: spfAdmin.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'spf_duplicate_form',
+                nonce: spfAdmin.nonce,
+                form_id: formId
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Reload the page to show the new form
+                    location.reload();
+                } else {
+                    alert(response.data.message || spfAdmin.strings.error);
+                    $button.prop('disabled', false).text(originalText);
+                }
+            },
+            error: function() {
+                alert(spfAdmin.strings.error);
+                $button.prop('disabled', false).text(originalText);
+            }
+        });
+    });
+
     // Helper functions
     function getFieldLabel(type) {
         const labels = {

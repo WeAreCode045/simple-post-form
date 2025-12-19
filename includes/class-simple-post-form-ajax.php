@@ -140,6 +140,20 @@ class Simple_Post_Form_Ajax {
 			) );
 		}
 
+		// Check for spam keywords
+		$spam_keyword = simple_post_form()->contains_spam_keywords( $field_data );
+		if ( $spam_keyword !== false ) {
+			// Save as spam submission
+			$spam_data = $field_data;
+			$spam_data['blocked_reason'] = 'Spam keyword detected: ' . $spam_keyword;
+			simple_post_form()->save_submission( $form_id, $spam_data, true );
+			
+			// Return generic success to avoid revealing spam detection
+			wp_send_json_success( array(
+				'message' => __( 'Form submitted successfully!', 'simple-post-form' ),
+			) );
+		}
+
 		// Prepare email
 		$to = $form->recipient_email;
 		$subject = ! empty( $form->form_subject ) ? $form->form_subject : sprintf(

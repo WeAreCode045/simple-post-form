@@ -22,6 +22,7 @@ class Simple_Post_Form_Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'admin_scripts' ) );
 		add_action( 'wp_ajax_spf_save_form', array( $this, 'ajax_save_form' ) );
 		add_action( 'wp_ajax_spf_delete_form', array( $this, 'ajax_delete_form' ) );
+		add_action( 'wp_ajax_spf_duplicate_form', array( $this, 'ajax_duplicate_form' ) );
 		add_action( 'wp_ajax_spf_get_form', array( $this, 'ajax_get_form' ) );
 		add_action( 'wp_ajax_spf_delete_submission', array( $this, 'ajax_delete_submission' ) );
 		add_action( 'wp_ajax_spf_unblock_ip', array( $this, 'ajax_unblock_ip' ) );
@@ -125,6 +126,7 @@ class Simple_Post_Form_Admin {
 				'nonce' => wp_create_nonce( 'spf-admin-nonce' ),
 				'strings' => array(
 					'confirmDelete' => __( 'Are you sure you want to delete this form?', 'simple-post-form' ),
+'confirmDuplicate' => __( 'Create a copy of this form?', 'simple-post-form' ),
 					'confirmDeleteField' => __( 'Are you sure you want to delete this field?', 'simple-post-form' ),
 					'formSaved' => __( 'Form saved successfully!', 'simple-post-form' ),
 					'error' => __( 'An error occurred. Please try again.', 'simple-post-form' ),
@@ -189,6 +191,9 @@ class Simple_Post_Form_Admin {
 										<?php esc_html_e( 'Edit', 'simple-post-form' ); ?>
 									</a>
 									<button class="button button-small spf-delete-form" data-form-id="<?php echo esc_attr( $form->id ); ?>">
+<button class="button button-small spf-duplicate-form" data-form-id="<?php echo esc_attr( $form->id ); ?>">
+<?php esc_html_e( 'Duplicate', 'simple-post-form' ); ?>
+</button>
 										<?php esc_html_e( 'Delete', 'simple-post-form' ); ?>
 									</button>
 								</td>
@@ -664,6 +669,35 @@ class Simple_Post_Form_Admin {
 	}
 
 	/**
+	 * AJAX duplicate form.
+	 */
+	public function ajax_duplicate_form() {
+		check_ajax_referer( 'spf-admin-nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'simple-post-form' ) ) );
+		}
+
+		$form_id = isset( $_POST['form_id'] ) ? intval( $_POST['form_id'] ) : 0;
+
+		if ( ! $form_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid form ID.', 'simple-post-form' ) ) );
+		}
+
+		$new_form_id = simple_post_form()->duplicate_form( $form_id );
+
+		if ( $new_form_id ) {
+			wp_send_json_success( array( 
+				'message' => __( 'Form duplicated successfully!', 'simple-post-form' ),
+				'form_id' => $new_form_id,
+				'edit_url' => admin_url( 'admin.php?page=simple-post-form-new&form_id=' . $new_form_id )
+			) );
+		} else {
+			wp_send_json_error( array( 'message' => __( 'Failed to duplicate form.', 'simple-post-form' ) ) );
+		}
+	}
+
+	/**
 	 * AJAX get form.
 	 */
 	public function ajax_get_form() {
@@ -906,6 +940,8 @@ class Simple_Post_Form_Admin {
 			update_option( 'spf_smtp_password', sanitize_text_field( $_POST['smtp_password'] ?? '' ) );
 			update_option( 'spf_smtp_from_email', sanitize_email( $_POST['smtp_from_email'] ?? '' ) );
 			update_option( 'spf_smtp_from_name', sanitize_text_field( $_POST['smtp_from_name'] ?? '' ) );
+			update_option( 'spf_spam_keywords_enabled', isset( $_POST['spam_keywords_enabled'] ) ? 1 : 0 );
+			update_option( 'spf_spam_keywords', sanitize_textarea_field( $_POST['spam_keywords'] ?? '' ) );
 			
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved successfully!', 'simple-post-form' ) . '</p></div>';
 		}
@@ -1063,6 +1099,54 @@ class Simple_Post_Form_Admin {
 						<td>
 							<textarea id="blocked_countries" name="blocked_countries" rows="3" class="large-text" placeholder="US, CN, RU"><?php echo esc_textarea( get_option( 'spf_blocked_countries', '' ) ); ?></textarea>
 							<p class="description"><?php esc_html_e( 'Enter country codes separated by commas (e.g., US, CN, RU). Uses ISO 3166-1 alpha-2 codes.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h3><?php esc_html_e( 'Spam Keywords Filtering', 'simple-post-form' ); ?></h3>
+				<table class="form-table">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable Keyword Filtering', 'simple-post-form' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="spam_keywords_enabled" value="1" <?php checked( get_option( 'spf_spam_keywords_enabled' ), 1 ); ?>>
+								<?php esc_html_e( 'Block submissions containing spam keywords', 'simple-post-form' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Automatically block form submissions that contain specified spam keywords in any field.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="spam_keywords"><?php esc_html_e( 'Spam Keywords', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<textarea id="spam_keywords" name="spam_keywords" rows="8" class="large-text" placeholder="bitcoin&#10;cryptocurrency&#10;porn&#10;viagra&#10;casino&#10;forex"><?php echo esc_textarea( get_option( 'spf_spam_keywords', '' ) ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'Enter one keyword or phrase per line. Matching is case-insensitive.', 'simple-post-form' ); ?></p>
+							<details style="margin-top: 10px;">
+								<summary style="cursor: pointer; color: #2271b1; font-weight: 500;"><?php esc_html_e( 'Common Spam Keywords (Click to view)', 'simple-post-form' ); ?></summary>
+								<div style="margin-top: 10px; padding: 10px; background: #f0f0f1; border-radius: 4px; font-family: monospace; font-size: 12px; line-height: 1.8;">
+									<strong><?php esc_html_e( 'Cryptocurrency & Finance:', 'simple-post-form' ); ?></strong><br>
+									bitcoin, cryptocurrency, crypto, ethereum, NFT, forex, binary options, investment opportunity, trading signals, crypto mining<br><br>
+									
+									<strong><?php esc_html_e( 'Adult Content:', 'simple-post-form' ); ?></strong><br>
+									porn, xxx, adult, sex, escort, dating, hookup<br><br>
+									
+									<strong><?php esc_html_e( 'Pharmaceuticals:', 'simple-post-form' ); ?></strong><br>
+									viagra, cialis, pharmacy, pills, prescription, weight loss, diet pills<br><br>
+									
+									<strong><?php esc_html_e( 'Gambling:', 'simple-post-form' ); ?></strong><br>
+									casino, gambling, poker, betting, slots, jackpot<br><br>
+									
+									<strong><?php esc_html_e( 'Scams & Schemes:', 'simple-post-form' ); ?></strong><br>
+									make money fast, get rich quick, work from home, mlm, multi level marketing, earn money online<br><br>
+									
+									<strong><?php esc_html_e( 'Counterfeit Goods:', 'simple-post-form' ); ?></strong><br>
+									replica, fake, counterfeit, knock off, designer handbags<br><br>
+									
+									<strong><?php esc_html_e( 'Other Common Spam:', 'simple-post-form' ); ?></strong><br>
+									seo services, link building, backlinks, website traffic, buy followers, instagram likes
+								</div>
+							</details>
 						</td>
 					</tr>
 				</table>
