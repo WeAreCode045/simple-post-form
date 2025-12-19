@@ -89,7 +89,7 @@ class Simple_Post_Form_Ajax {
 		}
 
 		// Verify form nonce
-		if ( ! isset( $_POST['form_nonce'] ) || ! wp_verify_nonce( $_POST['form_nonce'], 'spf_submit_form_' . $form_id ) ) {
+		if ( ! isset( $_POST['spf_form_nonce'] ) || ! wp_verify_nonce( $_POST['spf_form_nonce'], 'spf_submit_form_' . $form_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'simple-post-form' ) ) );
 		}
 
