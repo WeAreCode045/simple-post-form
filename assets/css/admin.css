@@ -1,0 +1,521 @@
+/* Admin Styles for Simple Post Form */
+
+.spf-wrap {
+    margin: 20px 20px 0 0;
+}
+
+.spf-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+.spf-empty-state p {
+    font-size: 16px;
+    color: #646970;
+    margin-bottom: 20px;
+}
+
+/* Tab Navigation */
+.spf-tab-wrapper {
+    margin: 20px 0 0 0;
+    border-bottom: 1px solid #ccd0d4;
+}
+
+.spf-tab-content {
+    display: none;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-top: none;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.spf-tab-content.spf-tab-active {
+    display: block;
+}
+
+.spf-settings-container {
+    max-width: 1000px;
+}
+
+#spf-tab-settings .spf-form-settings-panel {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+/* Builder Container */
+.spf-builder-container {
+    display: flex;
+    gap: 20px;
+}
+
+/* Sidebar */
+.spf-builder-sidebar {
+    width: 250px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 20px;
+    flex-shrink: 0;
+}
+
+.spf-builder-sidebar h2 {
+    margin: 0 0 15px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.spf-field-types {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.spf-field-type {
+    padding: 12px 15px;
+    background: #f0f0f1;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.spf-field-type:hover {
+    background: #fff;
+    border-color: #2271b1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.spf-field-type:active {
+    cursor: grabbing;
+}
+
+.spf-field-type .dashicons {
+    color: #2271b1;
+}
+
+/* Main Builder Area */
+.spf-builder-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.spf-form-settings-panel {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+}
+
+.spf-form-settings-panel h2 {
+    margin: 0 0 20px;
+    font-size: 18px;
+    font-weight: 600;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.spf-form-settings-panel h3 {
+    margin: 30px 0 15px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d2327;
+    border-bottom: 1px solid #f0f0f1;
+    padding-bottom: 8px;
+}
+
+.spf-form-settings-panel h4 {
+    margin: 20px 0 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #50575e;
+}
+
+.spf-form-settings-panel .description {
+    color: #646970;
+    font-size: 13px;
+    margin: -10px 0 15px;
+}
+
+.spf-form-group {
+    margin-bottom: 15px;
+}
+
+.spf-form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #1d2327;
+}
+
+.spf-form-group input[type="text"],
+.spf-form-group input[type="email"],
+.spf-form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.spf-form-group input[type="text"]:focus,
+.spf-form-group input[type="email"]:focus,
+.spf-form-group select:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.spf-form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.spf-col-6 {
+    flex: 1;
+}
+
+/* Form Canvas */
+.spf-form-canvas {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    min-height: 400px;
+}
+
+.spf-form-canvas h2 {
+    margin: 0 0 20px;
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.spf-preview-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #10a37f;
+    background: #d1fae5;
+    padding: 4px 10px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Preview update animation */
+@keyframes spf-preview-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(34, 113, 177, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(34, 113, 177, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(34, 113, 177, 0);
+    }
+}
+
+.spf-preview-updating {
+    animation: spf-preview-pulse 0.6s ease-out;
+}
+
+.spf-drop-zone {
+    min-height: 300px;
+    border: 2px dashed #dcdcde;
+    border-radius: 4px;
+    padding: 20px;
+    background: #f9f9f9;
+    font-size: 0; /* Remove whitespace between inline-block elements */
+}
+
+.spf-drop-zone > * {
+    font-size: 14px; /* Restore font size for child elements */
+}
+
+.spf-drop-zone.spf-drag-over {
+    background: #e0f2ff;
+    border-color: #2271b1;
+}
+
+.spf-empty-message {
+    text-align: center;
+    padding: 60px 20px;
+    color: #8c8f94;
+    font-size: 16px;
+}
+
+/* Preview Submit Button */
+.spf-preview-submit-wrapper {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #dcdcde;
+}
+
+.spf-preview-submit-button {
+    padding: 15px 40px;
+    background: #0073aa;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 400;
+    cursor: default;
+    transition: all 0.3s;
+    text-transform: none;
+    pointer-events: none;
+}
+
+.spf-preview-submit-button:hover {
+    opacity: 0.9;
+}
+
+/* Field Items */
+.spf-field-item {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.spf-field-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Ensure fields wrap properly when using different widths */
+.spf-drop-zone::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+.spf-field-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 15px;
+    background: #f6f7f7;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.spf-field-handle {
+    cursor: move;
+    color: #646970;
+}
+
+.spf-field-handle:hover {
+    color: #2271b1;
+}
+
+.spf-field-type-label {
+    flex: 1;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.spf-field-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.spf-field-actions button {
+    background: none;
+    border: none;
+    padding: 5px;
+    cursor: pointer;
+    color: #646970;
+    border-radius: 3px;
+}
+
+.spf-field-actions button:hover {
+    background: #e0e0e0;
+    color: #2271b1;
+}
+
+.spf-field-preview {
+    padding: 15px;
+}
+
+.spf-field-preview label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #1d2327;
+}
+
+.spf-field-preview .required {
+    color: #d63638;
+}
+
+.spf-field-preview input,
+.spf-field-preview textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background: #f9f9f9;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.spf-field-preview textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.spf-field-placeholder {
+    height: 80px;
+    background: #e0f2ff;
+    border: 2px dashed #2271b1;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+/* Form Actions */
+.spf-form-actions {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+/* Field Editor Modal */
+.spf-field-editor-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+    padding: 20px;
+}
+
+.spf-field-editor {
+    background: #fff;
+    border-radius: 4px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.spf-editor-header {
+    padding: 20px;
+    border-bottom: 1px solid #dcdcde;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.spf-editor-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.spf-editor-close {
+    background: none;
+    border: none;
+    padding: 5px;
+    cursor: pointer;
+    color: #646970;
+    border-radius: 3px;
+}
+
+.spf-editor-close:hover {
+    background: #f0f0f1;
+    color: #d63638;
+}
+
+.spf-editor-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.spf-editor-body h4 {
+    margin: 20px 0 15px;
+    padding-top: 15px;
+    border-top: 1px solid #dcdcde;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.spf-editor-footer {
+    padding: 20px;
+    border-top: 1px solid #dcdcde;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* Shortcode Display */
+.spf-shortcode-display {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.spf-shortcode-display h3 {
+    margin: 0 0 15px;
+    font-size: 16px;
+}
+
+.spf-shortcode-display input {
+    width: 100%;
+    padding: 10px;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .spf-builder-container {
+        flex-direction: column;
+    }
+    
+    .spf-builder-sidebar {
+        width: 100%;
+    }
+    
+    .spf-field-types {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .spf-field-type {
+        flex: 0 0 calc(50% - 5px);
+    }
+}
+
+@media (max-width: 768px) {
+    .spf-form-row {
+        flex-direction: column;
+    }
+}
