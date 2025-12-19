@@ -5,7 +5,7 @@
  * Description: A drag-and-drop form builder with customizable fields and styling options.
  * Author: Code045
  * Author URI: https://code045.nl/
- * Version: 1.3.0
+ * Version: 1.4.0
  * Requires at least: 6.0
  * Tested up to: 6.7
  *

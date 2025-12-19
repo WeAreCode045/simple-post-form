@@ -105,36 +105,39 @@ class Simple_Post_Form_Ajax {
 			wp_send_json_error( array( 'message' => __( 'Form has no fields.', 'simple-post-form' ) ) );
 		}
 
-		// Validate and collect field data
-		$field_data = array();
-		$errors = array();
+	// Validate and collect field data
+	$field_data = array();
+	$errors = array();
 
-		foreach ( $fields as $field ) {
-			$field_name = 'spf_field_' . $field->id;
-			$field_value = isset( $_POST[ $field_name ] ) ? sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) ) : '';
-
-			// Check required fields
-			if ( $field->field_required && empty( $field_value ) ) {
-				$errors[] = sprintf(
-					/* translators: %s: field label */
-					__( '%s is required.', 'simple-post-form' ),
-					$field->field_label
-				);
-			}
-
-			// Validate email fields
-			if ( $field->field_type === 'email' && ! empty( $field_value ) && ! is_email( $field_value ) ) {
-				$errors[] = sprintf(
-					/* translators: %s: field label */
-					__( '%s must be a valid email address.', 'simple-post-form' ),
-					$field->field_label
-				);
-			}
-
-			$field_data[ $field->field_label ] = $field_value;
+	foreach ( $fields as $field ) {
+		// Skip honeypot fields - they should not be included in submission data or email
+		if ( $field->field_type === 'honeypot' ) {
+			continue;
 		}
 
-		if ( ! empty( $errors ) ) {
+		$field_name = 'spf_field_' . $field->id;
+		$field_value = isset( $_POST[ $field_name ] ) ? sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) ) : '';
+
+		// Check required fields
+		if ( $field->field_required && empty( $field_value ) ) {
+			$errors[] = sprintf(
+				/* translators: %s: field label */
+				__( '%s is required.', 'simple-post-form' ),
+				$field->field_label
+			);
+		}
+
+		// Validate email fields
+		if ( $field->field_type === 'email' && ! empty( $field_value ) && ! is_email( $field_value ) ) {
+			$errors[] = sprintf(
+				/* translators: %s: field label */
+				__( '%s must be a valid email address.', 'simple-post-form' ),
+				$field->field_label
+			);
+		}
+
+		$field_data[ $field->field_label ] = $field_value;
+	}		if ( ! empty( $errors ) ) {
 			wp_send_json_error( array(
 				'message' => implode( '<br>', $errors ),
 			) );
