@@ -68,6 +68,7 @@ class Simple_Post_Form {
 	private function init_hooks() {
 		register_activation_hook( SPF_PLUGIN_FILE, array( $this, 'activate' ) );
 		add_action( 'init', array( $this, 'init' ), 0 );
+		add_action( 'admin_init', array( $this, 'check_version' ) );
 		add_action( 'phpmailer_init', array( $this, 'configure_smtp' ) );
 	}
 
@@ -88,6 +89,18 @@ class Simple_Post_Form {
 	public function init() {
 		// Load text domain.
 		load_plugin_textdomain( 'simple-post-form', false, dirname( plugin_basename( SPF_PLUGIN_FILE ) ) . '/languages' );
+	}
+
+	/**
+	 * Check plugin version and run migrations if needed.
+	 */
+	public function check_version() {
+		$installed_version = get_option( 'spf_version', '0.0.0' );
+		
+		if ( version_compare( $installed_version, SPF_VERSION, '<' ) ) {
+			$this->create_tables();
+			update_option( 'spf_version', SPF_VERSION );
+		}
 	}
 
 	/**
