@@ -931,6 +931,7 @@ class Simple_Post_Form_Admin {
 			update_option( 'spf_global_modal_styles', wp_json_encode( $_POST['modal_styles'] ?? array() ) );
 			update_option( 'spf_success_message', sanitize_textarea_field( $_POST['success_message'] ?? '' ) );
 			update_option( 'spf_error_message', sanitize_textarea_field( $_POST['error_message'] ?? '' ) );
+			update_option( 'spf_sender_copy_label', sanitize_text_field( $_POST['sender_copy_label'] ?? '' ) );
 			update_option( 'spf_rate_limit_enabled', isset( $_POST['rate_limit_enabled'] ) ? 1 : 0 );
 			update_option( 'spf_rate_limit_submissions', absint( $_POST['rate_limit_submissions'] ?? 5 ) );
 			update_option( 'spf_rate_limit_minutes', absint( $_POST['rate_limit_minutes'] ?? 10 ) );
@@ -985,6 +986,15 @@ class Simple_Post_Form_Admin {
 						<td>
 							<textarea id="spf-error-message" name="error_message" rows="3" class="large-text" placeholder="<?php esc_attr_e( 'Failed to send email. Please try again later.', 'simple-post-form' ); ?>"><?php echo esc_textarea( $error_message ); ?></textarea>
 							<p class="description"><?php esc_html_e( 'Message shown when form submission fails.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="spf-sender-copy-label"><?php esc_html_e( 'Send Copy Checkbox Label', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="text" id="spf-sender-copy-label" name="sender_copy_label" class="regular-text" value="<?php echo esc_attr( get_option( 'spf_sender_copy_label', '' ) ); ?>" placeholder="<?php esc_attr_e( 'Send me a copy of this submission', 'simple-post-form' ); ?>">
+							<p class="description"><?php esc_html_e( 'Text shown next to the "Send me a copy" checkbox. Leave empty to use default text.', 'simple-post-form' ); ?></p>
 						</td>
 					</tr>
 				</table>
