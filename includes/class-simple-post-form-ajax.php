@@ -137,13 +137,13 @@ class Simple_Post_Form_Ajax {
 		}
 
 		$field_data[ $field->field_label ] = $field_value;
-	}		if ( ! empty( $errors ) ) {
-			wp_send_json_error( array(
-				'message' => implode( '<br>', $errors ),
-			) );
-		}
-
-		// Check for spam keywords
+	}
+	
+	if ( ! empty( $errors ) ) {
+		wp_send_json_error( array(
+			'message' => implode( '<br>', $errors ),
+		) );
+	}		// Check for spam keywords
 		$spam_keyword = simple_post_form()->contains_spam_keywords( $field_data );
 		if ( $spam_keyword !== false ) {
 			// Save as spam submission
