@@ -183,6 +183,8 @@ class Simple_Post_Form {
 			modal_styles longtext DEFAULT NULL,
 			use_global_styles tinyint(1) DEFAULT 0,
 			use_reply_to tinyint(1) DEFAULT 0,
+			hide_labels tinyint(1) DEFAULT 0,
+			debug_mode tinyint(1) DEFAULT 0,
 			success_message text DEFAULT NULL,
 			error_message text DEFAULT NULL,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -213,10 +215,30 @@ class Simple_Post_Form {
 			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD use_reply_to tinyint(1) DEFAULT 0 AFTER use_global_styles" );
 		}
 		
+		// Check if we need to add hide_labels column
+		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_forms' AND column_name = 'hide_labels'" );
+		if ( empty( $row ) ) {
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD hide_labels tinyint(1) DEFAULT 0 AFTER use_reply_to" );
+		}
+		
+		// Check if we need to add debug_mode column
+		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_forms' AND column_name = 'debug_mode'" );
+		if ( empty( $row ) ) {
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD debug_mode tinyint(1) DEFAULT 0 AFTER hide_labels" );
+		}
+		
 		// Check if we need to add is_spam column to submissions table
 		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_submissions' AND column_name = 'is_spam'" );
 		if ( empty( $row ) ) {
 			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_submissions ADD is_spam tinyint(1) DEFAULT 0 AFTER user_agent" );
+		}
+		
+		// Check if we need to add email delivery tracking columns
+		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_submissions' AND column_name = 'email_sent'" );
+		if ( empty( $row ) ) {
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_submissions ADD email_sent tinyint(1) DEFAULT 0 AFTER is_spam" );
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_submissions ADD email_status varchar(50) DEFAULT NULL AFTER email_sent" );
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_submissions ADD email_error text DEFAULT NULL AFTER email_status" );
 		}
 
 		// Form fields table.
@@ -246,6 +268,9 @@ class Simple_Post_Form {
 			user_ip varchar(100) DEFAULT NULL,
 			user_agent text DEFAULT NULL,
 			is_spam tinyint(1) DEFAULT 0,
+			email_sent tinyint(1) DEFAULT 0,
+			email_status varchar(50) DEFAULT NULL,
+			email_error text DEFAULT NULL,
 			submitted_at datetime DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY form_id (form_id),
@@ -332,6 +357,8 @@ class Simple_Post_Form {
 			'modal_styles' => wp_json_encode( $data['modal_styles'] ?? array() ),
 			'use_global_styles' => ! empty( $data['use_global_styles'] ) ? 1 : 0,
 			'use_reply_to' => ! empty( $data['use_reply_to'] ) ? 1 : 0,
+			'hide_labels' => ! empty( $data['hide_labels'] ) ? 1 : 0,
+			'debug_mode' => ! empty( $data['debug_mode'] ) ? 1 : 0,
 			'success_message' => sanitize_textarea_field( $data['success_message'] ?? '' ),
 			'error_message' => sanitize_textarea_field( $data['error_message'] ?? '' ),
 		);
@@ -405,9 +432,10 @@ class Simple_Post_Form {
 	 * @param int   $form_id Form ID.
 	 * @param array $data Submission data.
 	 * @param bool  $is_spam Whether this is a spam submission.
+	 * @param array $email_status Optional email delivery status.
 	 * @return int|false Submission ID or false on failure.
 	 */
-	public function save_submission( $form_id, $data, $is_spam = false ) {
+	public function save_submission( $form_id, $data, $is_spam = false, $email_status = array() ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'spf_submissions';
 
@@ -417,6 +445,9 @@ class Simple_Post_Form {
 			'user_ip' => $this->get_user_ip(),
 			'user_agent' => sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ?? '' ),
 			'is_spam' => $is_spam ? 1 : 0,
+			'email_sent' => ! empty( $email_status['sent'] ) ? 1 : 0,
+			'email_status' => sanitize_text_field( $email_status['status'] ?? '' ),
+			'email_error' => sanitize_text_field( $email_status['error'] ?? '' ),
 		);
 
 		$wpdb->insert( $table_name, $submission_data );
@@ -463,6 +494,26 @@ class Simple_Post_Form {
 	public function delete_submission( $submission_id ) {
 		global $wpdb;
 		return $wpdb->delete( $wpdb->prefix . 'spf_submissions', array( 'id' => $submission_id ) );
+	}
+
+	/**
+	 * Update submission email status.
+	 *
+	 * @param int   $submission_id Submission ID.
+	 * @param array $email_status Email status data.
+	 * @return bool
+	 */
+	public function update_submission_email_status( $submission_id, $email_status ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'spf_submissions';
+		
+		$update_data = array(
+			'email_sent' => ! empty( $email_status['sent'] ) ? 1 : 0,
+			'email_status' => sanitize_text_field( $email_status['status'] ?? '' ),
+			'email_error' => sanitize_text_field( $email_status['error'] ?? '' ),
+		);
+		
+		return $wpdb->update( $table_name, $update_data, array( 'id' => $submission_id ) );
 	}
 
 	/**

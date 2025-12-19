@@ -437,3 +437,29 @@ body.spf-modal-open {
         font-size: 14px;
     }
 }
+
+/* Debug Mode Styling */
+.spf-form .description {
+    margin: 5px 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+    font-weight: normal;
+}
+
+/* Honeypot field in debug mode */
+input[id*="_honeypot"][style*="position: absolute"] {
+    /* Ensure truly hidden honeypot fields don't affect layout */
+    position: absolute !important;
+    left: -9999px !important;
+}
+
+/* Debug mode visible honeypot styling */
+.spf-form input[id*="_honeypot"]:not([style*="position: absolute"]) {
+    border: 2px dashed #d63638;
+    background: #fff8e5;
+}
+
+.spf-form input[id*="_honeypot"]:not([style*="position: absolute"]):focus {
+    border-color: #d63638;
+    box-shadow: 0 0 0 2px rgba(214, 54, 56, 0.2);
+}

@@ -257,7 +257,7 @@ class Simple_Post_Form_Frontend {
 						// Check if we need to start a new row
 						if ( $row_width + $field_width > 100 ) {
 							if ( ! empty( $current_row ) ) {
-								$this->render_field_row( $current_row );
+								$this->render_field_row( $current_row, $form );
 								$current_row = array();
 								$row_width = 0;
 							}
@@ -271,7 +271,7 @@ class Simple_Post_Form_Frontend {
 						
 						// If row is full, render it
 						if ( $row_width >= 100 ) {
-							$this->render_field_row( $current_row );
+							$this->render_field_row( $current_row, $form );
 							$current_row = array();
 							$row_width = 0;
 						}
@@ -279,7 +279,7 @@ class Simple_Post_Form_Frontend {
 
 					// Render remaining fields
 					if ( ! empty( $current_row ) ) {
-						$this->render_field_row( $current_row );
+						$this->render_field_row( $current_row, $form );
 					}
 					?>
 				</div>
@@ -316,8 +316,9 @@ class Simple_Post_Form_Frontend {
 	 * Render a row of fields.
 	 *
 	 * @param array $fields_in_row Fields to render in this row.
+	 * @param object $form Form object.
 	 */
-	private function render_field_row( $fields_in_row ) {
+	private function render_field_row( $fields_in_row, $form = null ) {
 		?>
 		<div class="spf-form-row">
 			<?php foreach ( $fields_in_row as $field_data ) :
@@ -325,7 +326,7 @@ class Simple_Post_Form_Frontend {
 				$styles = $field_data['styles'];
 				?>
 				<div class="spf-form-field" style="width: <?php echo esc_attr( $field->field_width ); ?>%;">
-					<?php $this->render_field( $field, $styles ); ?>
+					<?php $this->render_field( $field, $styles, $form ); ?>
 				</div>
 			<?php endforeach; ?>
 		</div>
@@ -337,17 +338,41 @@ class Simple_Post_Form_Frontend {
 	 *
 	 * @param object $field Field object.
 	 * @param array  $styles Field styles.
+	 * @param object $form Form object.
 	 */
-	private function render_field( $field, $styles ) {
+	private function render_field( $field, $styles, $form = null ) {
 		$field_style = $this->generate_field_style( $styles );
 		$field_name = esc_attr( 'spf_field_' . $field->id );
 		$required = $field->field_required ? 'required' : '';
 		$required_mark = $field->field_required ? '<span class="spf-required">*</span>' : '';
+		
+		// Check if labels should be hidden
+		$hide_labels = $form && ! empty( $form->hide_labels ) && $form->hide_labels == 1;
+		$debug_mode = $form && ! empty( $form->debug_mode ) && $form->debug_mode == 1;
+		
+		// Don't show label for honeypot fields or when hide_labels is enabled (unless it's a honeypot in debug mode)
+		$show_label = true;
+		if ( $field->field_type === 'honeypot' && ! ( $debug_mode && current_user_can( 'manage_options' ) ) ) {
+			$show_label = false;
+		} elseif ( $hide_labels && $field->field_type !== 'honeypot' ) {
+			$show_label = false;
+		}
+		
+		// If labels are hidden and placeholder is empty, use the label as placeholder
+		$placeholder = $field->field_placeholder;
+		if ( $hide_labels && empty( $placeholder ) && $field->field_type !== 'honeypot' ) {
+			$placeholder = $field->field_label . ( $field->field_required ? ' *' : '' );
+		}
 		?>
+		<?php if ( $show_label ) : ?>
 		<label class="spf-field-label">
 			<?php echo esc_html( $field->field_label ); ?>
 			<?php echo $required_mark; ?>
+			<?php if ( $field->field_type === 'honeypot' && $debug_mode && current_user_can( 'manage_options' ) ) : ?>
+				<span style="color: #d63638; font-weight: bold;"> [DEBUG: Honeypot Field]</span>
+			<?php endif; ?>
 		</label>
+		<?php endif; ?>
 
 		<?php
 		switch ( $field->field_type ) {
@@ -356,7 +381,7 @@ class Simple_Post_Form_Frontend {
 				<textarea 
 					name="<?php echo $field_name; ?>" 
 					id="<?php echo $field_name; ?>"
-					placeholder="<?php echo esc_attr( $field->field_placeholder ); ?>"
+					placeholder="<?php echo esc_attr( $placeholder ); ?>"
 					style="<?php echo esc_attr( $field_style ); ?>"
 					<?php echo $required; ?>
 					rows="5"
@@ -370,7 +395,7 @@ class Simple_Post_Form_Frontend {
 					type="email" 
 					name="<?php echo $field_name; ?>" 
 					id="<?php echo $field_name; ?>"
-					placeholder="<?php echo esc_attr( $field->field_placeholder ); ?>"
+					placeholder="<?php echo esc_attr( $placeholder ); ?>"
 					style="<?php echo esc_attr( $field_style ); ?>"
 					<?php echo $required; ?>
 				>
@@ -383,7 +408,7 @@ class Simple_Post_Form_Frontend {
 					type="tel" 
 					name="<?php echo $field_name; ?>" 
 					id="<?php echo $field_name; ?>"
-					placeholder="<?php echo esc_attr( $field->field_placeholder ); ?>"
+					placeholder="<?php echo esc_attr( $placeholder ); ?>"
 					style="<?php echo esc_attr( $field_style ); ?>"
 					<?php echo $required; ?>
 				>
@@ -396,7 +421,7 @@ class Simple_Post_Form_Frontend {
 					type="number" 
 					name="<?php echo $field_name; ?>" 
 					id="<?php echo $field_name; ?>"
-					placeholder="<?php echo esc_attr( $field->field_placeholder ); ?>"
+					placeholder="<?php echo esc_attr( $placeholder ); ?>"
 					style="<?php echo esc_attr( $field_style ); ?>"
 					<?php echo $required; ?>
 				>
@@ -405,17 +430,29 @@ class Simple_Post_Form_Frontend {
 
 			case 'honeypot':
 				// Honeypot field - hidden field with name 'email' to catch bots
+				// Show field only in debug mode for logged-in admins
+				$is_debug_visible = $debug_mode && current_user_can( 'manage_options' );
+				$honeypot_style = $is_debug_visible 
+					? esc_attr( $field_style ) 
+					: 'position: absolute; left: -9999px; width: 1px; height: 1px;';
 				?>
 				<input 
 					type="text" 
 					name="email" 
 					id="<?php echo $field_name; ?>_honeypot"
 					value=""
-					tabindex="-1"
+					placeholder="<?php echo $is_debug_visible ? esc_attr( $field->field_placeholder ?: 'Leave this field empty' ) : ''; ?>"
+					tabindex="<?php echo $is_debug_visible ? '0' : '-1'; ?>"
 					autocomplete="off"
-					style="position: absolute; left: -9999px; width: 1px; height: 1px;"
-					aria-hidden="true"
+					style="<?php echo $honeypot_style; ?>"
+					aria-hidden="<?php echo $is_debug_visible ? 'false' : 'true'; ?>"
 				>
+				<?php if ( $is_debug_visible ) : ?>
+					<p class="description" style="color: #d63638; font-size: 12px; margin-top: 5px;">
+						<strong><?php esc_html_e( 'DEBUG MODE:', 'simple-post-form' ); ?></strong> 
+						<?php esc_html_e( 'This honeypot field is only visible to you as an admin. Fill it to test spam blocking. Regular users won\'t see this field.', 'simple-post-form' ); ?>
+					</p>
+				<?php endif; ?>
 				<?php
 				break;
 
@@ -427,7 +464,7 @@ class Simple_Post_Form_Frontend {
 					type="text" 
 					name="<?php echo $field_name; ?>" 
 					id="<?php echo $field_name; ?>"
-					placeholder="<?php echo esc_attr( $field->field_placeholder ); ?>"
+					placeholder="<?php echo esc_attr( $placeholder ); ?>"
 					style="<?php echo esc_attr( $field_style ); ?>"
 					<?php echo $required; ?>
 				>

@@ -890,6 +890,90 @@
     color: #d63638;
 }
 
+.spf-status-badge.unknown {
+    background: #f0f0f1;
+    color: #646970;
+}
+
+.spf-status-badge .dashicons {
+    font-size: 16px;
+    line-height: 1;
+    vertical-align: middle;
+    margin-right: 2px;
+}
+
+/* Resend button */
+.spf-resend-submission {
+    margin-right: 8px;
+}
+
+.spf-resend-submission .dashicons {
+    font-size: 16px;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+/* Spinning animation for resend */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spf-resend-submission .dashicons-update {
+    animation: spin 1s linear infinite;
+}
+
+/* Error details */
+.spf-error-details {
+    margin-top: 4px;
+    font-size: 11px;
+}
+
+.spf-error-details summary {
+    cursor: pointer;
+    color: #d63638;
+    font-weight: 500;
+}
+
+.spf-error-details summary:hover {
+    color: #b32d2e;
+}
+
+.spf-error-details code {
+    display: block;
+    margin-top: 4px;
+    padding: 6px 8px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #d63638;
+    word-wrap: break-word;
+}
+
+/* Success message after resend */
+.spf-resend-success {
+    display: inline-block;
+    margin-left: 8px;
+    color: #10a37f;
+    font-size: 12px;
+    font-weight: 600;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 /* Notice improvements */
 .spf-wrap .notice {
     border-left-width: 4px;

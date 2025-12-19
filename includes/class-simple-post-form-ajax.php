@@ -175,11 +175,24 @@ class Simple_Post_Form_Ajax {
 			}
 		}
 
-		// Save submission to database
-		simple_post_form()->save_submission( $form_id, $field_data );
+		// Capture PHPMailer errors
+		$phpmailer_error = '';
+		add_action( 'wp_mail_failed', function( $error ) use ( &$phpmailer_error ) {
+			$phpmailer_error = $error->get_error_message();
+		});
 
 		// Send email
 		$sent = wp_mail( $to, $subject, $message, $headers );
+
+		// Prepare email status for database
+		$email_status = array(
+			'sent' => $sent,
+			'status' => $sent ? 'delivered' : 'failed',
+			'error' => $sent ? '' : $phpmailer_error,
+		);
+
+		// Save submission to database with email status
+		simple_post_form()->save_submission( $form_id, $field_data, false, $email_status );
 
 		// Get success/error messages
 		$success_message = ! empty( $form->success_message ) ? $form->success_message : get_option( 'spf_success_message', __( 'Form submitted successfully! We will get back to you soon.', 'simple-post-form' ) );

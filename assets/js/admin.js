@@ -393,6 +393,8 @@ jQuery(document).ready(function($) {
             button_text: $('#spf-button-text').val(),
             use_global_styles: $('#spf-use-global-styles').is(':checked') ? 1 : 0,
             use_reply_to: $('#spf-use-reply-to').is(':checked') ? 1 : 0,
+            hide_labels: $('#spf-hide-labels').is(':checked') ? 1 : 0,
+            debug_mode: $('#spf-debug-mode').is(':checked') ? 1 : 0,
             success_message: $('#spf-success-message').val(),
             error_message: $('#spf-error-message').val(),
             button_styles: {
@@ -711,6 +713,59 @@ jQuery(document).ready(function($) {
             error: function() {
                 alert('An error occurred. Please try again.');
                 $button.prop('disabled', false).text('Unblock');
+            }
+        });
+    });
+
+    // Handle resend submission
+    $(document).on('click', '.spf-resend-submission', function(e) {
+        e.preventDefault();
+        
+        if (!confirm('Are you sure you want to resend this submission email?')) {
+            return;
+        }
+        
+        const $button = $(this);
+        const submissionId = $button.data('submission-id');
+        const $statusCell = $('.spf-email-status[data-submission-id="' + submissionId + '"]');
+        
+        $button.prop('disabled', true);
+        const originalHtml = $button.html();
+        $button.html('<span class="dashicons dashicons-update" style="margin-top: 3px; animation: rotation 1s infinite linear;"></span> Sending...');
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'spf_resend_submission',
+                submission_id: submissionId,
+                nonce: spfAdmin.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Update status badge
+                    $statusCell.html('<span class="spf-status-badge success"><span class="dashicons dashicons-yes-alt" style="font-size: 14px; width: 14px; height: 14px; line-height: 1;"></span> Delivered</span>');
+                    
+                    // Show success message
+                    $button.after('<span class="spf-success-message" style="color: #10a37f; margin-left: 10px;">✓ Sent</span>');
+                    setTimeout(function() {
+                        $('.spf-success-message').fadeOut(300, function() { $(this).remove(); });
+                    }, 3000);
+                } else {
+                    // Update status with error
+                    let errorHtml = '<span class="spf-status-badge error"><span class="dashicons dashicons-dismiss" style="font-size: 14px; width: 14px; height: 14px; line-height: 1;"></span> Failed</span>';
+                    if (response.data && response.data.error) {
+                        errorHtml += '<details style="margin-top: 5px;"><summary style="cursor: pointer; color: #d63638; font-size: 12px;">View Error</summary><div style="margin-top: 5px; padding: 8px; background: #fee; border: 1px solid #fcc; border-radius: 3px; font-size: 12px;"><code>' + response.data.error + '</code></div></details>';
+                    }
+                    $statusCell.html(errorHtml);
+                    
+                    alert(response.data.message || 'Failed to resend email.');
+                }
+                $button.prop('disabled', false).html(originalHtml);
+            },
+            error: function() {
+                alert('An error occurred. Please try again.');
+                $button.prop('disabled', false).html(originalHtml);
             }
         });
     });

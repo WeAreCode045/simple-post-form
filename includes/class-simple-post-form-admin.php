@@ -26,6 +26,7 @@ class Simple_Post_Form_Admin {
 		add_action( 'wp_ajax_spf_delete_submission', array( $this, 'ajax_delete_submission' ) );
 		add_action( 'wp_ajax_spf_unblock_ip', array( $this, 'ajax_unblock_ip' ) );
 		add_action( 'wp_ajax_spf_block_ip', array( $this, 'ajax_block_ip' ) );
+		add_action( 'wp_ajax_spf_resend_submission', array( $this, 'ajax_resend_submission' ) );
 	}
 
 	/**
@@ -345,6 +346,26 @@ class Simple_Post_Form_Admin {
 							<?php esc_html_e( 'Use email field as Reply-To address', 'simple-post-form' ); ?>
 						</label>
 						<p class="description"><?php esc_html_e( 'When enabled, the first email field in the form will be set as the Reply-To address in the notification email.', 'simple-post-form' ); ?></p>
+					</div>
+
+					<h3><?php esc_html_e( 'Display Options', 'simple-post-form' ); ?></h3>
+
+					<div class="spf-form-group">
+						<label>
+							<input type="checkbox" id="spf-hide-labels" value="1" <?php checked( $form && $form->hide_labels, 1 ); ?>>
+							<?php esc_html_e( 'Hide field labels on frontend', 'simple-post-form' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'When enabled, field labels will be hidden. Placeholders will still be visible.', 'simple-post-form' ); ?></p>
+					</div>
+
+					<h3><?php esc_html_e( 'Debug & Testing', 'simple-post-form' ); ?></h3>
+
+					<div class="spf-form-group">
+						<label>
+							<input type="checkbox" id="spf-debug-mode" value="1" <?php checked( $form && $form->debug_mode, 1 ); ?>>
+							<?php esc_html_e( 'Enable debug mode for honeypot field', 'simple-post-form' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'When enabled, the honeypot anti-spam field will be visible to logged-in administrators so you can test spam blocking. The field will remain hidden for non-admin users.', 'simple-post-form' ); ?></p>
 					</div>
 
 					<h3><?php esc_html_e( 'Styling Options', 'simple-post-form' ); ?></h3>
@@ -732,6 +753,7 @@ class Simple_Post_Form_Admin {
 					<tr>
 						<th><?php esc_html_e( 'Form Name', 'simple-post-form' ); ?></th>
 						<th><?php esc_html_e( 'Submission Data', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'Email Status', 'simple-post-form' ); ?></th>
 						<th><?php esc_html_e( 'IP Address', 'simple-post-form' ); ?></th>
 						<th><?php esc_html_e( 'Submitted', 'simple-post-form' ); ?></th>
 						<th><?php esc_html_e( 'Actions', 'simple-post-form' ); ?></th>
@@ -757,9 +779,42 @@ class Simple_Post_Form_Admin {
 									</details>
 								<?php endif; ?>
 							</td>
+							<td class="spf-email-status" data-submission-id="<?php echo esc_attr( $submission->id ); ?>">
+								<?php
+								$status_class = '';
+								$status_text = __( 'Unknown', 'simple-post-form' );
+								$status_icon = 'dashicons-minus';
+								
+								if ( ! empty( $submission->email_sent ) ) {
+									$status_class = 'success';
+									$status_text = __( 'Delivered', 'simple-post-form' );
+									$status_icon = 'dashicons-yes-alt';
+								} elseif ( isset( $submission->email_sent ) && $submission->email_sent == 0 && ! empty( $submission->email_status ) ) {
+									$status_class = 'error';
+									$status_text = __( 'Failed', 'simple-post-form' );
+									$status_icon = 'dashicons-dismiss';
+								}
+								?>
+								<span class="spf-status-badge <?php echo esc_attr( $status_class ); ?>">
+									<span class="dashicons <?php echo esc_attr( $status_icon ); ?>" style="font-size: 14px; width: 14px; height: 14px; line-height: 1;"></span>
+									<?php echo esc_html( $status_text ); ?>
+								</span>
+								<?php if ( ! empty( $submission->email_error ) ) : ?>
+									<details style="margin-top: 5px;">
+										<summary style="cursor: pointer; color: #d63638; font-size: 12px;"><?php esc_html_e( 'View Error', 'simple-post-form' ); ?></summary>
+										<div style="margin-top: 5px; padding: 8px; background: #fee; border: 1px solid #fcc; border-radius: 3px; font-size: 12px;">
+											<code><?php echo esc_html( $submission->email_error ); ?></code>
+										</div>
+									</details>
+								<?php endif; ?>
+							</td>
 							<td><?php echo esc_html( $submission->user_ip ); ?></td>
 							<td><?php echo esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $submission->submitted_at ) ) ); ?></td>
 							<td>
+								<button class="button button-small spf-resend-submission" data-submission-id="<?php echo esc_attr( $submission->id ); ?>" title="<?php esc_attr_e( 'Resend email notification', 'simple-post-form' ); ?>">
+									<span class="dashicons dashicons-email" style="margin-top: 3px;"></span>
+									<?php esc_html_e( 'Resend', 'simple-post-form' ); ?>
+								</button>
 								<button class="button button-small spf-delete-submission" data-submission-id="<?php echo esc_attr( $submission->id ); ?>">
 									<?php esc_html_e( 'Delete', 'simple-post-form' ); ?>
 								</button>
@@ -1193,6 +1248,114 @@ class Simple_Post_Form_Admin {
 			wp_send_json_success( array( 'message' => __( 'IP blocked successfully.', 'simple-post-form' ) ) );
 		} else {
 			wp_send_json_error( array( 'message' => __( 'Failed to block IP.', 'simple-post-form' ) ) );
+		}
+	}
+
+	/**
+	 * AJAX resend submission email.
+	 */
+	public function ajax_resend_submission() {
+		check_ajax_referer( 'spf-admin-nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'simple-post-form' ) ) );
+		}
+
+		$submission_id = isset( $_POST['submission_id'] ) ? absint( $_POST['submission_id'] ) : 0;
+
+		if ( ! $submission_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid submission ID.', 'simple-post-form' ) ) );
+		}
+
+		// Get submission
+		$submission = simple_post_form()->get_submission( $submission_id );
+		if ( ! $submission ) {
+			wp_send_json_error( array( 'message' => __( 'Submission not found.', 'simple-post-form' ) ) );
+		}
+
+		// Get form
+		$form = simple_post_form()->get_form( $submission->form_id );
+		if ( ! $form ) {
+			wp_send_json_error( array( 'message' => __( 'Form not found.', 'simple-post-form' ) ) );
+		}
+
+		// Get fields
+		$fields = simple_post_form()->get_form_fields( $submission->form_id );
+		$submission_data = json_decode( $submission->submission_data, true );
+
+		// Prepare email
+		$to = $form->recipient_email;
+		$subject = ! empty( $form->form_subject ) ? $form->form_subject : sprintf( __( 'Form Submission: %s', 'simple-post-form' ), $form->form_name );
+		
+		// Build email message
+		$message = '<html><body>';
+		$message .= '<h2>' . esc_html( $form->form_name ) . '</h2>';
+		$message .= '<p style="background: #fffacd; padding: 10px; border-left: 4px solid #ff9800;"><strong>' . __( 'RESENT EMAIL', 'simple-post-form' ) . '</strong></p>';
+		
+		if ( ! empty( $form->form_title ) ) {
+			$message .= '<p><strong>' . esc_html( $form->form_title ) . '</strong></p>';
+		}
+
+		$message .= '<table style="border-collapse: collapse; width: 100%; max-width: 600px;">';
+		
+		foreach ( $submission_data as $label => $value ) {
+			if ( $label !== 'blocked_reason' ) {
+				$message .= '<tr>';
+				$message .= '<td style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>' . esc_html( $label ) . ':</strong></td>';
+				$message .= '<td style="padding: 10px; border: 1px solid #ddd;">' . nl2br( esc_html( $value ) ) . '</td>';
+				$message .= '</tr>';
+			}
+		}
+
+		$message .= '</table>';
+		$message .= '<br><hr>';
+		$message .= '<p style="color: #666; font-size: 12px;">';
+		$message .= sprintf(
+			__( 'Originally submitted on %s - Resent on %s', 'simple-post-form' ),
+			date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $submission->submitted_at ) ),
+			date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ) )
+		);
+		$message .= '</p>';
+		$message .= '</body></html>';
+
+		// Prepare headers
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+		
+		if ( ! empty( $form->sender_email ) && ! empty( $form->sender_name ) ) {
+			$headers[] = 'From: ' . $form->sender_name . ' <' . $form->sender_email . '>';
+		} elseif ( ! empty( $form->sender_email ) ) {
+			$headers[] = 'From: ' . $form->sender_email;
+		}
+
+		// Capture PHPMailer errors
+		$phpmailer_error = '';
+		add_action( 'wp_mail_failed', function( $error ) use ( &$phpmailer_error ) {
+			$phpmailer_error = $error->get_error_message();
+		});
+
+		// Send email
+		$sent = wp_mail( $to, $subject, $message, $headers );
+
+		// Update email status
+		$email_status = array(
+			'sent' => $sent,
+			'status' => $sent ? 'delivered' : 'failed',
+			'error' => $sent ? '' : $phpmailer_error,
+		);
+		
+		simple_post_form()->update_submission_email_status( $submission_id, $email_status );
+
+		if ( $sent ) {
+			wp_send_json_success( array( 
+				'message' => __( 'Email resent successfully.', 'simple-post-form' ),
+				'status' => 'delivered'
+			) );
+		} else {
+			wp_send_json_error( array( 
+				'message' => __( 'Failed to resend email.', 'simple-post-form' ) . ' ' . $phpmailer_error,
+				'status' => 'failed',
+				'error' => $phpmailer_error
+			) );
 		}
 	}
 
