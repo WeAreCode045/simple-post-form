@@ -286,6 +286,15 @@ class Simple_Post_Form_Frontend {
 
 				<div class="spf-form-messages"></div>
 
+				<?php if ( ! empty( $form->enable_sender_copy ) && $form->enable_sender_copy == 1 ) : ?>
+					<div class="spf-form-group" style="margin-top: 15px;">
+						<label style="display: flex; align-items: center; cursor: pointer;">
+							<input type="checkbox" name="spf_send_copy" value="1" style="margin-right: 8px;">
+							<span><?php esc_html_e( 'Send me a copy of this submission', 'simple-post-form' ); ?></span>
+						</label>
+					</div>
+				<?php endif; ?>
+
 				<div class="spf-form-submit">
 					<?php
 					$button_style = $this->generate_button_style( $button_styles );

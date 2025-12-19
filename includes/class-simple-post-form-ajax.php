@@ -198,20 +198,52 @@ class Simple_Post_Form_Ajax {
 			$phpmailer_error = $error->get_error_message();
 		});
 
-		// Send email
-		$sent = wp_mail( $to, $subject, $message, $headers );
+	// Send email
+	$sent = wp_mail( $to, $subject, $message, $headers );
 
-		// Prepare email status for database
-		$email_status = array(
-			'sent' => $sent,
-			'status' => $sent ? 'delivered' : 'failed',
-			'error' => $sent ? '' : $phpmailer_error,
-		);
+	// Send copy to sender if requested and form allows it
+	if ( ! empty( $form->enable_sender_copy ) && $form->enable_sender_copy == 1 && isset( $_POST['spf_send_copy'] ) && $_POST['spf_send_copy'] == '1' ) {
+		// Find the sender's email address from the form fields
+		$sender_email = '';
+		foreach ( $fields as $field ) {
+			if ( $field->field_type === 'email' ) {
+				$field_name = 'spf_field_' . $field->id;
+				$email_value = isset( $_POST[ $field_name ] ) ? sanitize_email( wp_unslash( $_POST[ $field_name ] ) ) : '';
+				if ( ! empty( $email_value ) && is_email( $email_value ) ) {
+					$sender_email = $email_value;
+					break;
+				}
+			}
+		}
 
-		// Save submission to database with email status
-		simple_post_form()->save_submission( $form_id, $field_data, false, $email_status );
+		// Send copy if we found a valid email
+		if ( ! empty( $sender_email ) ) {
+			$copy_subject = sprintf(
+				/* translators: %s: form name */
+				__( 'Copy of your submission: %s', 'simple-post-form' ),
+				$form->form_name
+			);
+			
+			$copy_message = $this->prepare_email_message( $form, $field_data );
+			$copy_message = str_replace( 
+				'<h2>' . esc_html( $form->form_name ) . '</h2>',
+				'<h2>' . esc_html__( 'Copy of Your Submission', 'simple-post-form' ) . '</h2>',
+				$copy_message
+			);
+			
+			wp_mail( $sender_email, $copy_subject, $copy_message, $headers );
+		}
+	}
 
-		// Get success/error messages
+	// Prepare email status for database
+	$email_status = array(
+		'sent' => $sent,
+		'status' => $sent ? 'delivered' : 'failed',
+		'error' => $sent ? '' : $phpmailer_error,
+	);
+
+	// Save submission to database with email status
+	simple_post_form()->save_submission( $form_id, $field_data, false, $email_status );		// Get success/error messages
 		$success_message = ! empty( $form->success_message ) ? $form->success_message : get_option( 'spf_success_message', __( 'Form submitted successfully! We will get back to you soon.', 'simple-post-form' ) );
 		$error_message = ! empty( $form->error_message ) ? $form->error_message : get_option( 'spf_error_message', __( 'Failed to send email. Please try again later.', 'simple-post-form' ) );
 

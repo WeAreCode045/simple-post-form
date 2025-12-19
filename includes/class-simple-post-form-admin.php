@@ -347,15 +347,21 @@ class Simple_Post_Form_Admin {
 
 					<div class="spf-form-group">
 						<label>
-							<input type="checkbox" id="spf-use-reply-to" value="1" <?php checked( $form && $form->use_reply_to, 1 ); ?>>
-							<?php esc_html_e( 'Use email field as Reply-To address', 'simple-post-form' ); ?>
-						</label>
-						<p class="description"><?php esc_html_e( 'When enabled, the first email field in the form will be set as the Reply-To address in the notification email.', 'simple-post-form' ); ?></p>
-					</div>
+					<input type="checkbox" id="spf-use-reply-to" value="1" <?php checked( $form && $form->use_reply_to, 1 ); ?>>
+					<?php esc_html_e( 'Use email field as Reply-To address', 'simple-post-form' ); ?>
+				</label>
+				<p class="description"><?php esc_html_e( 'When enabled, the first email field in the form will be set as the Reply-To address in the notification email.', 'simple-post-form' ); ?></p>
+			</div>
 
-					<h3><?php esc_html_e( 'Display Options', 'simple-post-form' ); ?></h3>
+			<div class="spf-form-group">
+				<label>
+					<input type="checkbox" id="spf-enable-sender-copy" value="1" <?php checked( $form && $form->enable_sender_copy, 1 ); ?>>
+					<?php esc_html_e( 'Show "Send me a copy" checkbox on form', 'simple-post-form' ); ?>
+				</label>
+				<p class="description"><?php esc_html_e( 'When enabled, a checkbox will appear on the form allowing the sender to receive a copy of their submission at the email address they provide.', 'simple-post-form' ); ?></p>
+			</div>
 
-					<div class="spf-form-group">
+			<h3><?php esc_html_e( 'Display Options', 'simple-post-form' ); ?></h3>					<div class="spf-form-group">
 						<label>
 							<input type="checkbox" id="spf-hide-labels" value="1" <?php checked( $form && $form->hide_labels, 1 ); ?>>
 							<?php esc_html_e( 'Hide field labels on frontend', 'simple-post-form' ); ?>

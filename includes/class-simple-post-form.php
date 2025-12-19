@@ -193,14 +193,15 @@ class Simple_Post_Form {
 			button_styles longtext DEFAULT NULL,
 			modal_button_text varchar(100) DEFAULT 'Open Form',
 			modal_button_styles longtext DEFAULT NULL,
-			modal_styles longtext DEFAULT NULL,
-			use_global_styles tinyint(1) DEFAULT 0,
-			use_reply_to tinyint(1) DEFAULT 0,
-			hide_labels tinyint(1) DEFAULT 0,
-			debug_mode tinyint(1) DEFAULT 0,
-			success_message text DEFAULT NULL,
-			error_message text DEFAULT NULL,
-			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+		modal_styles longtext DEFAULT NULL,
+		use_global_styles tinyint(1) DEFAULT 0,
+		use_reply_to tinyint(1) DEFAULT 0,
+		enable_sender_copy tinyint(1) DEFAULT 0,
+		hide_labels tinyint(1) DEFAULT 0,
+		debug_mode tinyint(1) DEFAULT 0,
+		success_message text DEFAULT NULL,
+		error_message text DEFAULT NULL,
+		created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id)
 		) {$charset_collate};";
@@ -232,6 +233,12 @@ class Simple_Post_Form {
 		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_forms' AND column_name = 'hide_labels'" );
 		if ( empty( $row ) ) {
 			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD hide_labels tinyint(1) DEFAULT 0 AFTER use_reply_to" );
+		}
+		
+		// Check if we need to add enable_sender_copy column
+		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_forms' AND column_name = 'enable_sender_copy'" );
+		if ( empty( $row ) ) {
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD enable_sender_copy tinyint(1) DEFAULT 0 AFTER use_reply_to" );
 		}
 		
 		// Check if we need to add debug_mode column
@@ -368,11 +375,12 @@ class Simple_Post_Form {
 			'modal_button_text' => sanitize_text_field( $data['modal_button_text'] ?? 'Open Form' ),
 			'modal_button_styles' => wp_json_encode( $data['modal_button_styles'] ?? array() ),
 			'modal_styles' => wp_json_encode( $data['modal_styles'] ?? array() ),
-			'use_global_styles' => ! empty( $data['use_global_styles'] ) ? 1 : 0,
-			'use_reply_to' => ! empty( $data['use_reply_to'] ) ? 1 : 0,
-			'hide_labels' => ! empty( $data['hide_labels'] ) ? 1 : 0,
-			'debug_mode' => ! empty( $data['debug_mode'] ) ? 1 : 0,
-			'success_message' => sanitize_textarea_field( $data['success_message'] ?? '' ),
+		'use_global_styles' => ! empty( $data['use_global_styles'] ) ? 1 : 0,
+		'use_reply_to' => ! empty( $data['use_reply_to'] ) ? 1 : 0,
+		'enable_sender_copy' => ! empty( $data['enable_sender_copy'] ) ? 1 : 0,
+		'hide_labels' => ! empty( $data['hide_labels'] ) ? 1 : 0,
+		'debug_mode' => ! empty( $data['debug_mode'] ) ? 1 : 0,
+		'success_message' => sanitize_textarea_field( $data['success_message'] ?? '' ),
 			'error_message' => sanitize_textarea_field( $data['error_message'] ?? '' ),
 		);
 
@@ -472,11 +480,12 @@ class Simple_Post_Form {
 			'modal_button_text' => $form->modal_button_text,
 			'modal_button_styles' => $form->modal_button_styles,
 			'modal_styles' => $form->modal_styles,
-			'use_global_styles' => $form->use_global_styles,
-			'use_reply_to' => $form->use_reply_to,
-			'hide_labels' => $form->hide_labels ?? 0,
-			'debug_mode' => $form->debug_mode ?? 0,
-			'success_message' => $form->success_message,
+		'use_global_styles' => $form->use_global_styles,
+		'use_reply_to' => $form->use_reply_to,
+		'enable_sender_copy' => $form->enable_sender_copy ?? 0,
+		'hide_labels' => $form->hide_labels ?? 0,
+		'debug_mode' => $form->debug_mode ?? 0,
+		'success_message' => $form->success_message,
 			'error_message' => $form->error_message,
 		);
 

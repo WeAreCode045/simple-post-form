@@ -393,6 +393,7 @@ jQuery(document).ready(function($) {
             button_text: $('#spf-button-text').val(),
             use_global_styles: $('#spf-use-global-styles').is(':checked') ? 1 : 0,
             use_reply_to: $('#spf-use-reply-to').is(':checked') ? 1 : 0,
+            enable_sender_copy: $('#spf-enable-sender-copy').is(':checked') ? 1 : 0,
             hide_labels: $('#spf-hide-labels').is(':checked') ? 1 : 0,
             debug_mode: $('#spf-debug-mode').is(':checked') ? 1 : 0,
             success_message: $('#spf-success-message').val(),
