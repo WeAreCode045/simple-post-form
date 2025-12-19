@@ -131,7 +131,19 @@ class Simple_Post_Form_Frontend {
 
 		// Get modal button settings
 		$button_text = ! empty( $form->modal_button_text ) ? $form->modal_button_text : __( 'Open Form', 'simple-post-form' );
-		$modal_button_styles = $form->modal_button_styles ? json_decode( $form->modal_button_styles, true ) : array();
+		
+		// Check if form should use global styles for modal button
+		$use_global_styles = ! empty( $form->use_global_styles ) && $form->use_global_styles == 1;
+		
+		if ( $use_global_styles ) {
+			// Load global button styles from options
+			$global_styles = get_option( 'spf_global_button_styles', array() );
+			$modal_button_styles = is_array( $global_styles ) ? $global_styles : array();
+		} else {
+			// Use form-specific modal button styles
+			$modal_button_styles = $form->modal_button_styles ? json_decode( $form->modal_button_styles, true ) : array();
+		}
+		
 		$modal_styles = $form->modal_styles ? json_decode( $form->modal_styles, true ) : array();
 
 		// Generate unique ID for this modal
@@ -211,7 +223,18 @@ class Simple_Post_Form_Frontend {
 	 * @param array  $fields Form fields.
 	 */
 	private function render_form( $form, $fields ) {
-		$button_styles = $form->button_styles ? json_decode( $form->button_styles, true ) : array();
+		// Check if form should use global styles
+		$use_global_styles = ! empty( $form->use_global_styles ) && $form->use_global_styles == 1;
+		
+		if ( $use_global_styles ) {
+			// Load global button styles from options
+			$global_styles = get_option( 'spf_global_button_styles', array() );
+			$button_styles = is_array( $global_styles ) ? $global_styles : array();
+		} else {
+			// Use form-specific button styles
+			$button_styles = $form->button_styles ? json_decode( $form->button_styles, true ) : array();
+		}
+		
 		$form_id = 'spf-form-' . $form->id;
 		?>
 		<div class="spf-form-container" id="<?php echo esc_attr( $form_id ); ?>">
@@ -376,6 +399,22 @@ class Simple_Post_Form_Frontend {
 					placeholder="<?php echo esc_attr( $field->field_placeholder ); ?>"
 					style="<?php echo esc_attr( $field_style ); ?>"
 					<?php echo $required; ?>
+				>
+				<?php
+				break;
+
+			case 'honeypot':
+				// Honeypot field - hidden field with name 'email' to catch bots
+				?>
+				<input 
+					type="text" 
+					name="email" 
+					id="<?php echo $field_name; ?>_honeypot"
+					value=""
+					tabindex="-1"
+					autocomplete="off"
+					style="position: absolute; left: -9999px; width: 1px; height: 1px;"
+					aria-hidden="true"
 				>
 				<?php
 				break;

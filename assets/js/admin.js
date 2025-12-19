@@ -391,6 +391,10 @@ jQuery(document).ready(function($) {
             sender_name: $('#spf-sender-name').val(),
             sender_email: $('#spf-sender-email').val(),
             button_text: $('#spf-button-text').val(),
+            use_global_styles: $('#spf-use-global-styles').is(':checked') ? 1 : 0,
+            use_reply_to: $('#spf-use-reply-to').is(':checked') ? 1 : 0,
+            success_message: $('#spf-success-message').val(),
+            error_message: $('#spf-error-message').val(),
             button_styles: {
                 backgroundColor: $('#spf-btn-bg-color').val(),
                 hoverBackgroundColor: $('#spf-btn-hover-bg').val(),
@@ -521,7 +525,8 @@ jQuery(document).ready(function($) {
             email: 'Email',
             phone: 'Phone',
             name: 'Name',
-            number: 'Number'
+            number: 'Number',
+            honeypot: 'Honeypot (Anti-Spam)'
         };
         return labels[type] || type;
     }
@@ -619,5 +624,94 @@ jQuery(document).ready(function($) {
         
         if (originalBg) $(this).css('background-color', originalBg);
         if (originalColor) $(this).css('color', originalColor);
+    });
+
+    // Handle delete submission
+    $('.spf-delete-submission').on('click', function(e) {
+        e.preventDefault();
+        
+        if (!confirm('Are you sure you want to delete this submission? This action cannot be undone.')) {
+            return;
+        }
+        
+        const $button = $(this);
+        const submissionId = $button.data('submission-id');
+        const $row = $button.closest('tr');
+        
+        $button.prop('disabled', true).text('Deleting...');
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'spf_delete_submission',
+                submission_id: submissionId,
+                nonce: spfAdmin.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $row.fadeOut(300, function() {
+                        $(this).remove();
+                        
+                        // Check if table is empty
+                        if ($('.spf-submissions-table tbody tr').length === 0) {
+                            $('.spf-submissions-table tbody').html('<tr><td colspan="5" style="text-align: center; padding: 30px;">' + 
+                                'No submissions found.' + '</td></tr>');
+                        }
+                    });
+                } else {
+                    alert(response.data.message || 'Failed to delete submission.');
+                    $button.prop('disabled', false).text('Delete');
+                }
+            },
+            error: function() {
+                alert('An error occurred. Please try again.');
+                $button.prop('disabled', false).text('Delete');
+            }
+        });
+    });
+
+    // Handle unblock IP
+    $('.spf-unblock-ip').on('click', function(e) {
+        e.preventDefault();
+        
+        if (!confirm('Are you sure you want to unblock this IP address?')) {
+            return;
+        }
+        
+        const $button = $(this);
+        const ipAddress = $button.data('ip');
+        const $row = $button.closest('tr');
+        
+        $button.prop('disabled', true).text('Unblocking...');
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'spf_unblock_ip',
+                ip_address: ipAddress,
+                nonce: spfAdmin.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $row.fadeOut(300, function() {
+                        $(this).remove();
+                        
+                        // Check if table is empty
+                        if ($('.wp-list-table tbody tr').length === 0) {
+                            location.reload();
+                        }
+                    });
+                } else {
+                    alert(response.data.message || 'Failed to unblock IP.');
+                    $button.prop('disabled', false).text('Unblock');
+                }
+            },
+            error: function() {
+                alert('An error occurred. Please try again.');
+                $button.prop('disabled', false).text('Unblock');
+            }
+        });
     });
 });

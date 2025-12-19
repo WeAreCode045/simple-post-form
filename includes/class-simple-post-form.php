@@ -68,6 +68,7 @@ class Simple_Post_Form {
 	private function init_hooks() {
 		register_activation_hook( SPF_PLUGIN_FILE, array( $this, 'activate' ) );
 		add_action( 'init', array( $this, 'init' ), 0 );
+		add_action( 'phpmailer_init', array( $this, 'configure_smtp' ) );
 	}
 
 	/**
@@ -87,6 +88,65 @@ class Simple_Post_Form {
 	public function init() {
 		// Load text domain.
 		load_plugin_textdomain( 'simple-post-form', false, dirname( plugin_basename( SPF_PLUGIN_FILE ) ) . '/languages' );
+	}
+
+	/**
+	 * Configure SMTP for PHPMailer.
+	 *
+	 * @param PHPMailer $phpmailer PHPMailer instance.
+	 */
+	public function configure_smtp( $phpmailer ) {
+		// Check if SMTP is enabled
+		if ( ! get_option( 'spf_smtp_enabled' ) ) {
+			return;
+		}
+
+		$smtp_host = get_option( 'spf_smtp_host', '' );
+		$smtp_port = get_option( 'spf_smtp_port', 587 );
+		$smtp_encryption = get_option( 'spf_smtp_encryption', 'tls' );
+		$smtp_auth = get_option( 'spf_smtp_auth', 1 );
+		$smtp_username = get_option( 'spf_smtp_username', '' );
+		$smtp_password = get_option( 'spf_smtp_password', '' );
+		$smtp_from_email = get_option( 'spf_smtp_from_email', '' );
+		$smtp_from_name = get_option( 'spf_smtp_from_name', '' );
+
+		// Only configure if host is set
+		if ( empty( $smtp_host ) ) {
+			return;
+		}
+
+		// Tell PHPMailer to use SMTP
+		$phpmailer->isSMTP();
+
+		// Set the hostname of the mail server
+		$phpmailer->Host = $smtp_host;
+
+		// Set the SMTP port number
+		$phpmailer->Port = $smtp_port;
+
+		// Set encryption
+		if ( $smtp_encryption && $smtp_encryption !== 'none' ) {
+			$phpmailer->SMTPSecure = $smtp_encryption;
+		}
+
+		// Whether to use SMTP authentication
+		if ( $smtp_auth ) {
+			$phpmailer->SMTPAuth = true;
+			$phpmailer->Username = $smtp_username;
+			$phpmailer->Password = $smtp_password;
+		}
+
+		// Set from email and name if provided
+		if ( ! empty( $smtp_from_email ) ) {
+			$phpmailer->From = $smtp_from_email;
+			if ( ! empty( $smtp_from_name ) ) {
+				$phpmailer->FromName = $smtp_from_name;
+			}
+		}
+
+		// Additional settings for better compatibility
+		$phpmailer->SMTPAutoTLS = true;
+		$phpmailer->Timeout = 30;
 	}
 
 	/**
@@ -122,6 +182,7 @@ class Simple_Post_Form {
 			modal_button_styles longtext DEFAULT NULL,
 			modal_styles longtext DEFAULT NULL,
 			use_global_styles tinyint(1) DEFAULT 0,
+			use_reply_to tinyint(1) DEFAULT 0,
 			success_message text DEFAULT NULL,
 			error_message text DEFAULT NULL,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -141,8 +202,21 @@ class Simple_Post_Form {
 		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_forms' AND column_name = 'use_global_styles'" );
 		if ( empty( $row ) ) {
 			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD use_global_styles tinyint(1) DEFAULT 0 AFTER modal_styles" );
-			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD success_message text DEFAULT NULL AFTER use_global_styles" );
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD use_reply_to tinyint(1) DEFAULT 0 AFTER use_global_styles" );
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD success_message text DEFAULT NULL AFTER use_reply_to" );
 			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD error_message text DEFAULT NULL AFTER success_message" );
+		}
+		
+		// Check if we need to add use_reply_to column
+		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_forms' AND column_name = 'use_reply_to'" );
+		if ( empty( $row ) ) {
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_forms ADD use_reply_to tinyint(1) DEFAULT 0 AFTER use_global_styles" );
+		}
+		
+		// Check if we need to add is_spam column to submissions table
+		$row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$wpdb->prefix}spf_submissions' AND column_name = 'is_spam'" );
+		if ( empty( $row ) ) {
+			$wpdb->query( "ALTER TABLE {$wpdb->prefix}spf_submissions ADD is_spam tinyint(1) DEFAULT 0 AFTER user_agent" );
 		}
 
 		// Form fields table.
@@ -171,11 +245,27 @@ class Simple_Post_Form {
 			submission_data longtext NOT NULL,
 			user_ip varchar(100) DEFAULT NULL,
 			user_agent text DEFAULT NULL,
+			is_spam tinyint(1) DEFAULT 0,
 			submitted_at datetime DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY form_id (form_id),
-			KEY submitted_at (submitted_at)
+			KEY submitted_at (submitted_at),
+			KEY is_spam (is_spam)
 		) {$charset_collate};";
+
+		// Blocked IPs table.
+		$table_name = $wpdb->prefix . 'spf_blocked_ips';
+		$sql[] = "CREATE TABLE IF NOT EXISTS {$table_name} (
+			id bigint(20) NOT NULL AUTO_INCREMENT,
+			ip_address varchar(100) NOT NULL,
+			block_reason varchar(255) DEFAULT NULL,
+			blocked_at datetime DEFAULT CURRENT_TIMESTAMP,
+			blocked_until datetime DEFAULT NULL,
+			is_permanent tinyint(1) DEFAULT 0,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ip_address (ip_address),
+			KEY blocked_until (blocked_until)
+		) {$charset_collate}";
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		foreach ( $sql as $query ) {
@@ -241,6 +331,7 @@ class Simple_Post_Form {
 			'modal_button_styles' => wp_json_encode( $data['modal_button_styles'] ?? array() ),
 			'modal_styles' => wp_json_encode( $data['modal_styles'] ?? array() ),
 			'use_global_styles' => ! empty( $data['use_global_styles'] ) ? 1 : 0,
+			'use_reply_to' => ! empty( $data['use_reply_to'] ) ? 1 : 0,
 			'success_message' => sanitize_textarea_field( $data['success_message'] ?? '' ),
 			'error_message' => sanitize_textarea_field( $data['error_message'] ?? '' ),
 		);
@@ -313,9 +404,10 @@ class Simple_Post_Form {
 	 *
 	 * @param int   $form_id Form ID.
 	 * @param array $data Submission data.
+	 * @param bool  $is_spam Whether this is a spam submission.
 	 * @return int|false Submission ID or false on failure.
 	 */
-	public function save_submission( $form_id, $data ) {
+	public function save_submission( $form_id, $data, $is_spam = false ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'spf_submissions';
 
@@ -324,6 +416,7 @@ class Simple_Post_Form {
 			'submission_data' => wp_json_encode( $data ),
 			'user_ip' => $this->get_user_ip(),
 			'user_agent' => sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ?? '' ),
+			'is_spam' => $is_spam ? 1 : 0,
 		);
 
 		$wpdb->insert( $table_name, $submission_data );
@@ -333,18 +426,20 @@ class Simple_Post_Form {
 	/**
 	 * Get submissions.
 	 *
-	 * @param int $form_id Optional form ID to filter by.
+	 * @param int  $form_id Optional form ID to filter by.
+	 * @param bool $spam_only Whether to get only spam submissions.
 	 * @return array
 	 */
-	public function get_submissions( $form_id = 0 ) {
+	public function get_submissions( $form_id = 0, $spam_only = false ) {
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'spf_submissions';
+		$spam_filter = $spam_only ? 1 : 0;
 
 		if ( $form_id ) {
-			return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table_name} WHERE form_id = %d ORDER BY submitted_at DESC", $form_id ) );
+			return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table_name} WHERE form_id = %d AND is_spam = %d ORDER BY submitted_at DESC", $form_id, $spam_filter ) );
 		}
 
-		return $wpdb->get_results( "SELECT * FROM {$table_name} ORDER BY submitted_at DESC" );
+		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table_name} WHERE is_spam = %d ORDER BY submitted_at DESC", $spam_filter ) );
 	}
 
 	/**
@@ -375,15 +470,145 @@ class Simple_Post_Form {
 	 *
 	 * @return string
 	 */
-	private function get_user_ip() {
-		$ip = '';
+	public function get_user_ip() {
 		if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
-			$ip = $_SERVER['HTTP_CLIENT_IP'];
+			return sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
 		} elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-			$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-		} else {
-			$ip = $_SERVER['REMOTE_ADDR'] ?? '';
+			return sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
+		} elseif ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
+			return sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
 		}
-		return sanitize_text_field( $ip );
+		return '';
+	}
+
+	/**
+	 * Check if IP is blocked.
+	 *
+	 * @param string $ip_address IP address to check.
+	 * @return bool
+	 */
+	public function is_ip_blocked( $ip_address ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'spf_blocked_ips';
+		
+		$result = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM {$table_name} WHERE ip_address = %s AND (is_permanent = 1 OR blocked_until IS NULL OR blocked_until > NOW())",
+			$ip_address
+		) );
+		
+		return ! empty( $result );
+	}
+
+	/**
+	 * Block an IP address.
+	 *
+	 * @param string $ip_address IP address to block.
+	 * @param string $reason Block reason.
+	 * @param int    $duration Duration in minutes (0 for permanent).
+	 * @return bool
+	 */
+	public function block_ip( $ip_address, $reason = '', $duration = 0 ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'spf_blocked_ips';
+		
+		$blocked_until = null;
+		$is_permanent = 1;
+		
+		if ( $duration > 0 ) {
+			$blocked_until = date( 'Y-m-d H:i:s', time() + ( $duration * 60 ) );
+			$is_permanent = 0;
+		}
+		
+		$data = array(
+			'ip_address' => $ip_address,
+			'block_reason' => $reason,
+			'blocked_until' => $blocked_until,
+			'is_permanent' => $is_permanent,
+		);
+		
+		// Check if IP already blocked
+		$existing = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM {$table_name} WHERE ip_address = %s",
+			$ip_address
+		) );
+		
+		if ( $existing ) {
+			return $wpdb->update( $table_name, $data, array( 'ip_address' => $ip_address ) );
+		}
+		
+		return $wpdb->insert( $table_name, $data );
+	}
+
+	/**
+	 * Unblock an IP address.
+	 *
+	 * @param string $ip_address IP address to unblock.
+	 * @return bool
+	 */
+	public function unblock_ip( $ip_address ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'spf_blocked_ips';
+		return $wpdb->delete( $table_name, array( 'ip_address' => $ip_address ) );
+	}
+
+	/**
+	 * Get all blocked IPs.
+	 *
+	 * @return array
+	 */
+	public function get_blocked_ips() {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'spf_blocked_ips';
+		return $wpdb->get_results( "SELECT * FROM {$table_name} ORDER BY blocked_at DESC" );
+	}
+
+	/**
+	 * Check rate limit for IP.
+	 *
+	 * @param string $ip_address IP address.
+	 * @param int    $form_id Form ID.
+	 * @return bool True if rate limit exceeded.
+	 */
+	public function check_rate_limit( $ip_address, $form_id ) {
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'spf_submissions';
+		
+		$rate_limit = get_option( 'spf_rate_limit_submissions', 5 );
+		$time_window = get_option( 'spf_rate_limit_minutes', 10 );
+		
+		if ( empty( $rate_limit ) || empty( $time_window ) ) {
+			return false;
+		}
+		
+		$time_ago = date( 'Y-m-d H:i:s', time() - ( $time_window * 60 ) );
+		
+		$count = $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$table_name} WHERE user_ip = %s AND form_id = %d AND submitted_at > %s",
+			$ip_address,
+			$form_id,
+			$time_ago
+		) );
+		
+		return $count >= $rate_limit;
+	}
+
+	/**
+	 * Get country from IP address.
+	 *
+	 * @param string $ip_address IP address.
+	 * @return string Country code or empty string.
+	 */
+	public function get_country_from_ip( $ip_address ) {
+		// Use a free IP geolocation API
+		$response = wp_remote_get( 'http://ip-api.com/json/' . $ip_address . '?fields=countryCode' );
+		
+		if ( is_wp_error( $response ) ) {
+			return '';
+		}
+		
+		$body = wp_remote_retrieve_body( $response );
+		$data = json_decode( $body, true );
+		
+		return isset( $data['countryCode'] ) ? $data['countryCode'] : '';
 	}
 }

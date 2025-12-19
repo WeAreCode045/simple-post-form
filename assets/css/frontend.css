@@ -3,6 +3,14 @@
 .spf-form-container {
     max-width: 100%;
     margin: 0 auto;
+    box-sizing: border-box;
+}
+
+/* Ensure all child elements use border-box */
+.spf-form-container *,
+.spf-form-container *::before,
+.spf-form-container *::after {
+    box-sizing: border-box;
 }
 
 .spf-form-title {
@@ -153,6 +161,12 @@
     
     .spf-form-field {
         width: 100% !important;
+        flex: none !important;
+    }
+    
+    /* Force all fields to full width on mobile */
+    .spf-form-field[style*="width"] {
+        width: 100% !important;
     }
     
     .spf-form-title {
@@ -170,12 +184,21 @@
         padding: 15px;
     }
     
+    .spf-form-container {
+        padding: 0 10px;
+    }
+    
     .spf-form input[type="text"],
     .spf-form input[type="email"],
     .spf-form input[type="tel"],
     .spf-form input[type="number"],
     .spf-form textarea {
         font-size: 16px; /* Prevents zoom on iOS */
+        padding: 10px 12px;
+    }
+    
+    .spf-form-title {
+        font-size: 20px;
     }
 }
 
@@ -241,6 +264,11 @@
     height: 100%;
     z-index: 999999;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
 }
 
 .spf-modal-overlay {
@@ -260,7 +288,7 @@
     background: #fff;
     border-radius: 8px;
     padding: 40px;
-    margin: 50px auto;
+    margin: auto;
     z-index: 2;
     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
     animation: spf-modalSlideIn 0.3s ease-out;
@@ -309,11 +337,20 @@ body.spf-modal-open {
 
 /* Modal Responsive */
 @media (max-width: 768px) {
+    .spf-modal {
+        padding: 15px;
+    }
+    
     .spf-modal-content {
-        width: 90%;
-        max-width: 90%;
+        width: 95%;
+        max-width: 95%;
         padding: 30px 20px;
-        margin: 30px auto;
+        margin: auto;
+    }
+    
+    /* Force modal to use full width on tablets */
+    .spf-modal-content[style*="width"] {
+        width: 95% !important;
     }
     
     .spf-modal-close {
@@ -321,17 +358,82 @@ body.spf-modal-open {
         right: 10px;
         font-size: 28px;
     }
+    
+    /* Ensure modal fields are full width */
+    .spf-modal .spf-form-field {
+        width: 100% !important;
+    }
 }
 
 @media (max-width: 480px) {
+    .spf-modal {
+        padding: 10px;
+        align-items: flex-start;
+        padding-top: 40px;
+    }
+    
     .spf-modal-content {
+        width: 98%;
+        max-width: 98%;
         padding: 20px 15px;
-        margin: 20px auto;
+        margin: 0 auto;
         border-radius: 4px;
+    }
+    
+    /* Force modal to nearly full width on mobile */
+    .spf-modal-content[style*="width"],
+    .spf-modal-content[style*="max-width"] {
+        width: 98% !important;
+        max-width: 98% !important;
     }
     
     .spf-modal-trigger {
         width: 100%;
         text-align: center;
+        padding: 12px 30px;
+    }
+    
+    .spf-modal-close {
+        font-size: 24px;
+        padding: 3px 8px;
+    }
+    
+    /* Better touch targets for mobile */
+    .spf-modal .spf-form input[type="text"],
+    .spf-modal .spf-form input[type="email"],
+    .spf-modal .spf-form input[type="tel"],
+    .spf-modal .spf-form input[type="number"],
+    .spf-modal .spf-form textarea {
+        min-height: 44px; /* iOS recommended touch target */
+    }
+}
+
+/* Extra small devices (320px and below) */
+@media (max-width: 360px) {
+    .spf-form {
+        padding: 12px;
+    }
+    
+    .spf-form-container {
+        padding: 0 5px;
+    }
+    
+    .spf-modal-content {
+        margin: 5px auto;
+        padding: 15px 10px;
+    }
+    
+    .spf-form-title {
+        font-size: 18px;
+        margin-bottom: 15px;
+    }
+    
+    .spf-field-label {
+        font-size: 13px;
+    }
+    
+    .spf-submit-button {
+        padding: 10px 20px;
+        font-size: 14px;
     }
 }

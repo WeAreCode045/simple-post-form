@@ -23,6 +23,9 @@ class Simple_Post_Form_Admin {
 		add_action( 'wp_ajax_spf_save_form', array( $this, 'ajax_save_form' ) );
 		add_action( 'wp_ajax_spf_delete_form', array( $this, 'ajax_delete_form' ) );
 		add_action( 'wp_ajax_spf_get_form', array( $this, 'ajax_get_form' ) );
+		add_action( 'wp_ajax_spf_delete_submission', array( $this, 'ajax_delete_submission' ) );
+		add_action( 'wp_ajax_spf_unblock_ip', array( $this, 'ajax_unblock_ip' ) );
+		add_action( 'wp_ajax_spf_block_ip', array( $this, 'ajax_block_ip' ) );
 	}
 
 	/**
@@ -64,6 +67,15 @@ class Simple_Post_Form_Admin {
 			'manage_options',
 			'simple-post-form-submissions',
 			array( $this, 'submissions_page' )
+		);
+
+		add_submenu_page(
+			'simple-post-form',
+			__( 'Blocked IPs', 'simple-post-form' ),
+			__( 'Blocked IPs', 'simple-post-form' ),
+			'manage_options',
+			'simple-post-form-blocked-ips',
+			array( $this, 'blocked_ips_page' )
 		);
 
 		add_submenu_page(
@@ -237,14 +249,18 @@ class Simple_Post_Form_Admin {
 								<span class="dashicons dashicons-admin-users"></span>
 								<?php esc_html_e( 'Name', 'simple-post-form' ); ?>
 							</div>
-							<div class="spf-field-type" data-type="number" draggable="true">
-								<span class="dashicons dashicons-calculator"></span>
-								<?php esc_html_e( 'Number', 'simple-post-form' ); ?>
-							</div>
+						<div class="spf-field-type" data-type="number" draggable="true">
+							<span class="dashicons dashicons-calculator"></span>
+							<?php esc_html_e( 'Number', 'simple-post-form' ); ?>
+						</div>
+						<div class="spf-field-type" data-type="honeypot" draggable="true">
+							<span class="dashicons dashicons-shield"></span>
+							<?php esc_html_e( 'Honeypot (Anti-Spam)', 'simple-post-form' ); ?>
 						</div>
 					</div>
+				</div>
 
-					<div class="spf-builder-main">
+				<div class="spf-builder-main">
 						<div class="spf-form-canvas">
 							<h2>
 								<?php esc_html_e( 'Form Preview', 'simple-post-form' ); ?>
@@ -308,7 +324,38 @@ class Simple_Post_Form_Admin {
 							<input type="text" id="spf-button-text" value="<?php echo $form ? esc_attr( $form->button_text ) : 'Submit'; ?>">
 						</div>
 
-						<h3><?php esc_html_e( 'Button Styling', 'simple-post-form' ); ?></h3>
+						<h3><?php esc_html_e( 'Response Messages', 'simple-post-form' ); ?></h3>
+						<p class="description"><?php esc_html_e( 'Customize the success and error messages for this form. Leave empty to use global default messages.', 'simple-post-form' ); ?></p>
+
+						<div class="spf-form-group">
+							<label><?php esc_html_e( 'Success Message', 'simple-post-form' ); ?></label>
+							<textarea id="spf-success-message" rows="2" placeholder="<?php esc_attr_e( 'Use global default message', 'simple-post-form' ); ?>"><?php echo $form ? esc_textarea( $form->success_message ) : ''; ?></textarea>
+						</div>
+
+						<div class="spf-form-group">
+							<label><?php esc_html_e( 'Error Message', 'simple-post-form' ); ?></label>
+							<textarea id="spf-error-message" rows="2" placeholder="<?php esc_attr_e( 'Use global default message', 'simple-post-form' ); ?>"><?php echo $form ? esc_textarea( $form->error_message ) : ''; ?></textarea>
+						</div>
+
+					<h3><?php esc_html_e( 'Email Settings', 'simple-post-form' ); ?></h3>
+
+					<div class="spf-form-group">
+						<label>
+							<input type="checkbox" id="spf-use-reply-to" value="1" <?php checked( $form && $form->use_reply_to, 1 ); ?>>
+							<?php esc_html_e( 'Use email field as Reply-To address', 'simple-post-form' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'When enabled, the first email field in the form will be set as the Reply-To address in the notification email.', 'simple-post-form' ); ?></p>
+					</div>
+
+					<h3><?php esc_html_e( 'Styling Options', 'simple-post-form' ); ?></h3>
+
+					<div class="spf-form-group">
+						<label>
+							<input type="checkbox" id="spf-use-global-styles" value="1" <?php checked( $form && $form->use_global_styles, 1 ); ?>>
+							<?php esc_html_e( 'Use global styling settings', 'simple-post-form' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'When enabled, this form will use the global styling settings from the plugin settings page.', 'simple-post-form' ); ?></p>
+					</div>						<h3><?php esc_html_e( 'Button Styling', 'simple-post-form' ); ?></h3>
 
 						<div class="spf-form-row">
 							<div class="spf-form-group spf-col-6">
@@ -618,5 +665,660 @@ class Simple_Post_Form_Admin {
 		} else {
 			wp_send_json_error( array( 'message' => __( 'Invalid form ID.', 'simple-post-form' ) ) );
 		}
+	}
+
+	/**
+	 * Submissions page.
+	 */
+	public function submissions_page() {
+		$form_id = isset( $_GET['form_id'] ) ? intval( $_GET['form_id'] ) : 0;
+		$tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'submissions';
+		$forms = simple_post_form()->get_forms();
+		?>
+		<div class="wrap spf-wrap">
+			<h1><?php esc_html_e( 'Form Submissions', 'simple-post-form' ); ?></h1>
+
+			<h2 class="nav-tab-wrapper">
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=simple-post-form-submissions&tab=submissions' . ( $form_id ? '&form_id=' . $form_id : '' ) ) ); ?>" 
+				   class="nav-tab <?php echo $tab === 'submissions' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Submissions', 'simple-post-form' ); ?>
+				</a>
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=simple-post-form-submissions&tab=blocked' . ( $form_id ? '&form_id=' . $form_id : '' ) ) ); ?>" 
+				   class="nav-tab <?php echo $tab === 'blocked' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Blocked (Spam)', 'simple-post-form' ); ?>
+				</a>
+			</h2>
+
+			<?php if ( ! empty( $forms ) ) : ?>
+				<div style="margin: 20px 0;">
+					<label for="spf-filter-form"><?php esc_html_e( 'Filter by form:', 'simple-post-form' ); ?></label>
+					<select id="spf-filter-form" onchange="location = this.value;">
+						<option value="<?php echo esc_url( admin_url( 'admin.php?page=simple-post-form-submissions&tab=' . $tab ) ); ?>"><?php esc_html_e( 'All Forms', 'simple-post-form' ); ?></option>
+						<?php foreach ( $forms as $form ) : ?>
+							<option value="<?php echo esc_url( admin_url( 'admin.php?page=simple-post-form-submissions&tab=' . $tab . '&form_id=' . $form->id ) ); ?>" <?php selected( $form_id, $form->id ); ?>>
+								<?php echo esc_html( $form->form_name ); ?>
+							</option>
+						<?php endforeach; ?>
+					</select>
+				</div>
+			<?php endif; ?>
+
+			<?php
+			if ( $tab === 'blocked' ) {
+				$this->render_blocked_submissions( $form_id );
+			} else {
+				$this->render_submissions_list( $form_id );
+			}
+			?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render submissions list.
+	 *
+	 * @param int $form_id Form ID filter.
+	 */
+	private function render_submissions_list( $form_id ) {
+		$submissions = simple_post_form()->get_submissions( $form_id, false );
+		?>
+		<?php if ( empty( $submissions ) ) : ?>
+			<div class="spf-empty-state">
+				<p><?php esc_html_e( 'No submissions found.', 'simple-post-form' ); ?></p>
+			</div>
+		<?php else : ?>
+			<table class="wp-list-table widefat fixed striped spf-submissions-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Form Name', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'Submission Data', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'IP Address', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'Submitted', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'Actions', 'simple-post-form' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $submissions as $submission ) : ?>
+						<?php
+						$form = simple_post_form()->get_form( $submission->form_id );
+						$data = json_decode( $submission->submission_data, true );
+						?>
+						<tr>
+							<td><strong><?php echo $form ? esc_html( $form->form_name ) : __( 'Unknown', 'simple-post-form' ); ?></strong></td>
+							<td>
+								<?php if ( $data ) : ?>
+									<details>
+										<summary><?php esc_html_e( 'View Data', 'simple-post-form' ); ?></summary>
+										<div style="margin-top: 10px;">
+											<?php foreach ( $data as $key => $value ) : ?>
+												<p style="margin: 5px 0;"><strong><?php echo esc_html( $key ); ?>:</strong> <?php echo esc_html( $value ); ?></p>
+											<?php endforeach; ?>
+										</div>
+									</details>
+								<?php endif; ?>
+							</td>
+							<td><?php echo esc_html( $submission->user_ip ); ?></td>
+							<td><?php echo esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $submission->submitted_at ) ) ); ?></td>
+							<td>
+								<button class="button button-small spf-delete-submission" data-submission-id="<?php echo esc_attr( $submission->id ); ?>">
+									<?php esc_html_e( 'Delete', 'simple-post-form' ); ?>
+								</button>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		<?php endif; ?>
+		<?php
+	}
+
+	/**
+	 * Render blocked submissions list.
+	 *
+	 * @param int $form_id Form ID filter.
+	 */
+	private function render_blocked_submissions( $form_id ) {
+		$submissions = simple_post_form()->get_submissions( $form_id, true );
+		?>
+		<?php if ( empty( $submissions ) ) : ?>
+			<div class="spf-empty-state">
+				<p><?php esc_html_e( 'No blocked submissions found.', 'simple-post-form' ); ?></p>
+			</div>
+		<?php else : ?>
+			<table class="wp-list-table widefat fixed striped spf-submissions-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Form Name', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'Blocked Reason', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'IP Address', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'User Agent', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'Blocked At', 'simple-post-form' ); ?></th>
+						<th><?php esc_html_e( 'Actions', 'simple-post-form' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $submissions as $submission ) : ?>
+						<?php
+						$form = simple_post_form()->get_form( $submission->form_id );
+						$data = json_decode( $submission->submission_data, true );
+						$blocked_reason = isset( $data['blocked_reason'] ) ? $data['blocked_reason'] : __( 'Unknown', 'simple-post-form' );
+						?>
+						<tr>
+							<td><strong><?php echo $form ? esc_html( $form->form_name ) : __( 'Unknown', 'simple-post-form' ); ?></strong></td>
+							<td>
+								<span class="dashicons dashicons-shield" style="color: #d63638;"></span>
+								<?php echo esc_html( $blocked_reason ); ?>
+							</td>
+							<td><?php echo esc_html( $submission->user_ip ); ?></td>
+							<td><code style="font-size: 11px;"><?php echo esc_html( wp_trim_words( $submission->user_agent, 10, '...' ) ); ?></code></td>
+							<td><?php echo esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $submission->submitted_at ) ) ); ?></td>
+							<td>
+								<button class="button button-small spf-delete-submission" data-submission-id="<?php echo esc_attr( $submission->id ); ?>">
+									<?php esc_html_e( 'Delete', 'simple-post-form' ); ?>
+								</button>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		<?php endif; ?>
+		<?php
+	}
+
+	/**
+	 * Settings page.
+	 */
+	public function settings_page() {
+		// Save settings
+		if ( isset( $_POST['spf_save_settings'] ) && check_admin_referer( 'spf-settings-nonce' ) ) {
+			update_option( 'spf_global_button_styles', wp_json_encode( $_POST['button_styles'] ?? array() ) );
+			update_option( 'spf_global_modal_button_styles', wp_json_encode( $_POST['modal_button_styles'] ?? array() ) );
+			update_option( 'spf_global_modal_styles', wp_json_encode( $_POST['modal_styles'] ?? array() ) );
+			update_option( 'spf_success_message', sanitize_textarea_field( $_POST['success_message'] ?? '' ) );
+			update_option( 'spf_error_message', sanitize_textarea_field( $_POST['error_message'] ?? '' ) );
+			update_option( 'spf_rate_limit_enabled', isset( $_POST['rate_limit_enabled'] ) ? 1 : 0 );
+			update_option( 'spf_rate_limit_submissions', absint( $_POST['rate_limit_submissions'] ?? 5 ) );
+			update_option( 'spf_rate_limit_minutes', absint( $_POST['rate_limit_minutes'] ?? 10 ) );
+			update_option( 'spf_rate_limit_block_duration', absint( $_POST['rate_limit_block_duration'] ?? 60 ) );
+			update_option( 'spf_country_blocking_enabled', isset( $_POST['country_blocking_enabled'] ) ? 1 : 0 );
+			update_option( 'spf_blocked_countries', sanitize_textarea_field( $_POST['blocked_countries'] ?? '' ) );
+			update_option( 'spf_smtp_enabled', isset( $_POST['smtp_enabled'] ) ? 1 : 0 );
+			update_option( 'spf_smtp_host', sanitize_text_field( $_POST['smtp_host'] ?? '' ) );
+			update_option( 'spf_smtp_port', absint( $_POST['smtp_port'] ?? 587 ) );
+			update_option( 'spf_smtp_encryption', sanitize_text_field( $_POST['smtp_encryption'] ?? 'tls' ) );
+			update_option( 'spf_smtp_auth', isset( $_POST['smtp_auth'] ) ? 1 : 0 );
+			update_option( 'spf_smtp_username', sanitize_text_field( $_POST['smtp_username'] ?? '' ) );
+			update_option( 'spf_smtp_password', sanitize_text_field( $_POST['smtp_password'] ?? '' ) );
+			update_option( 'spf_smtp_from_email', sanitize_email( $_POST['smtp_from_email'] ?? '' ) );
+			update_option( 'spf_smtp_from_name', sanitize_text_field( $_POST['smtp_from_name'] ?? '' ) );
+			
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved successfully!', 'simple-post-form' ) . '</p></div>';
+		}
+
+		$button_styles = json_decode( get_option( 'spf_global_button_styles', '{}' ), true );
+		$modal_button_styles = json_decode( get_option( 'spf_global_modal_button_styles', '{}' ), true );
+		$modal_styles = json_decode( get_option( 'spf_global_modal_styles', '{}' ), true );
+		$success_message = get_option( 'spf_success_message', '' );
+		$error_message = get_option( 'spf_error_message', '' );
+		$weights = array( '300', '400', '500', '600', '700', '800' );
+		?>
+		<div class="wrap spf-wrap">
+			<h1><?php esc_html_e( 'Plugin Settings', 'simple-post-form' ); ?></h1>
+
+			<form method="post" action="">
+				<?php wp_nonce_field( 'spf-settings-nonce' ); ?>
+
+				<h2><?php esc_html_e( 'Response Messages', 'simple-post-form' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'These messages will be used as default for all forms. You can override them per form in the form settings.', 'simple-post-form' ); ?></p>
+
+				<table class="form-table">
+					<tr>
+						<th scope="row">
+							<label for="spf-success-message"><?php esc_html_e( 'Success Message', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<textarea id="spf-success-message" name="success_message" rows="3" class="large-text" placeholder="<?php esc_attr_e( 'Form submitted successfully! We will get back to you soon.', 'simple-post-form' ); ?>"><?php echo esc_textarea( $success_message ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'Message shown when form is submitted successfully.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="spf-error-message"><?php esc_html_e( 'Error Message', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<textarea id="spf-error-message" name="error_message" rows="3" class="large-text" placeholder="<?php esc_attr_e( 'Failed to send email. Please try again later.', 'simple-post-form' ); ?>"><?php echo esc_textarea( $error_message ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'Message shown when form submission fails.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Global Styling', 'simple-post-form' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Set default styles for all forms. Forms can opt-in to use these global styles.', 'simple-post-form' ); ?></p>
+
+				<h3><?php esc_html_e( 'Submit Button Styling', 'simple-post-form' ); ?></h3>
+				<table class="form-table">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Colors', 'simple-post-form' ); ?></th>
+						<td>
+							<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+								<div>
+									<label><?php esc_html_e( 'Background Color', 'simple-post-form' ); ?></label>
+									<input type="text" class="spf-color-picker" name="button_styles[backgroundColor]" value="<?php echo esc_attr( $button_styles['backgroundColor'] ?? '#0073aa' ); ?>">
+								</div>
+								<div>
+									<label><?php esc_html_e( 'Hover Background', 'simple-post-form' ); ?></label>
+									<input type="text" class="spf-color-picker" name="button_styles[hoverBackgroundColor]" value="<?php echo esc_attr( $button_styles['hoverBackgroundColor'] ?? '#005177' ); ?>">
+								</div>
+								<div>
+									<label><?php esc_html_e( 'Text Color', 'simple-post-form' ); ?></label>
+									<input type="text" class="spf-color-picker" name="button_styles[color]" value="<?php echo esc_attr( $button_styles['color'] ?? '#ffffff' ); ?>">
+								</div>
+								<div>
+									<label><?php esc_html_e( 'Hover Text Color', 'simple-post-form' ); ?></label>
+									<input type="text" class="spf-color-picker" name="button_styles[hoverColor]" value="<?php echo esc_attr( $button_styles['hoverColor'] ?? '#ffffff' ); ?>">
+								</div>
+							</div>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Typography', 'simple-post-form' ); ?></th>
+						<td>
+							<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+								<div>
+									<label><?php esc_html_e( 'Font Size', 'simple-post-form' ); ?></label>
+									<input type="text" name="button_styles[fontSize]" value="<?php echo esc_attr( $button_styles['fontSize'] ?? '16px' ); ?>" placeholder="16px">
+								</div>
+								<div>
+									<label><?php esc_html_e( 'Font Weight', 'simple-post-form' ); ?></label>
+									<select name="button_styles[fontWeight]">
+										<?php foreach ( $weights as $weight ) : ?>
+											<option value="<?php echo esc_attr( $weight ); ?>" <?php selected( $button_styles['fontWeight'] ?? '400', $weight ); ?>><?php echo esc_html( $weight ); ?></option>
+										<?php endforeach; ?>
+									</select>
+								</div>
+								<div>
+									<label><?php esc_html_e( 'Border Radius', 'simple-post-form' ); ?></label>
+									<input type="text" name="button_styles[borderRadius]" value="<?php echo esc_attr( $button_styles['borderRadius'] ?? '4px' ); ?>" placeholder="4px">
+								</div>
+							</div>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Security & Anti-Spam', 'simple-post-form' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Configure rate limiting and country blocking to prevent spam and abuse.', 'simple-post-form' ); ?></p>
+
+				<h3><?php esc_html_e( 'Rate Limiting', 'simple-post-form' ); ?></h3>
+				<table class="form-table">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable Rate Limiting', 'simple-post-form' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="rate_limit_enabled" value="1" <?php checked( get_option( 'spf_rate_limit_enabled' ), 1 ); ?>>
+								<?php esc_html_e( 'Enable automatic IP blocking for excessive submissions', 'simple-post-form' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Automatically block IPs that exceed the submission limit within the specified time window.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="rate_limit_submissions"><?php esc_html_e( 'Maximum Submissions', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="number" id="rate_limit_submissions" name="rate_limit_submissions" value="<?php echo esc_attr( get_option( 'spf_rate_limit_submissions', 5 ) ); ?>" min="1" max="100" class="small-text">
+							<p class="description"><?php esc_html_e( 'Maximum number of submissions allowed per form.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="rate_limit_minutes"><?php esc_html_e( 'Time Window (minutes)', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="number" id="rate_limit_minutes" name="rate_limit_minutes" value="<?php echo esc_attr( get_option( 'spf_rate_limit_minutes', 10 ) ); ?>" min="1" max="1440" class="small-text">
+							<p class="description"><?php esc_html_e( 'Time window to count submissions (in minutes).', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="rate_limit_block_duration"><?php esc_html_e( 'Block Duration (minutes)', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="number" id="rate_limit_block_duration" name="rate_limit_block_duration" value="<?php echo esc_attr( get_option( 'spf_rate_limit_block_duration', 60 ) ); ?>" min="1" max="10080" class="small-text">
+							<p class="description"><?php esc_html_e( 'How long to block the IP address when rate limit is exceeded.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h3><?php esc_html_e( 'Country Blocking', 'simple-post-form' ); ?></h3>
+				<table class="form-table">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable Country Blocking', 'simple-post-form' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="country_blocking_enabled" value="1" <?php checked( get_option( 'spf_country_blocking_enabled' ), 1 ); ?>>
+								<?php esc_html_e( 'Block form submissions from specific countries', 'simple-post-form' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Prevent submissions from specified countries using IP geolocation.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="blocked_countries"><?php esc_html_e( 'Blocked Countries', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<textarea id="blocked_countries" name="blocked_countries" rows="3" class="large-text" placeholder="US, CN, RU"><?php echo esc_textarea( get_option( 'spf_blocked_countries', '' ) ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'Enter country codes separated by commas (e.g., US, CN, RU). Uses ISO 3166-1 alpha-2 codes.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'SMTP Email Settings', 'simple-post-form' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Configure SMTP to send form emails through your mail server instead of PHP mail().', 'simple-post-form' ); ?></p>
+
+				<table class="form-table">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable SMTP', 'simple-post-form' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="smtp_enabled" value="1" <?php checked( get_option( 'spf_smtp_enabled' ), 1 ); ?>>
+								<?php esc_html_e( 'Use SMTP for sending emails', 'simple-post-form' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Enable this to use SMTP instead of the default PHP mail() function.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="smtp_host"><?php esc_html_e( 'SMTP Host', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="text" id="smtp_host" name="smtp_host" value="<?php echo esc_attr( get_option( 'spf_smtp_host', '' ) ); ?>" class="regular-text" placeholder="smtp.gmail.com">
+							<p class="description"><?php esc_html_e( 'Your SMTP server hostname (e.g., smtp.gmail.com).', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="smtp_port"><?php esc_html_e( 'SMTP Port', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="number" id="smtp_port" name="smtp_port" value="<?php echo esc_attr( get_option( 'spf_smtp_port', 587 ) ); ?>" class="small-text" min="1" max="65535">
+							<p class="description"><?php esc_html_e( 'SMTP port (587 for TLS, 465 for SSL, 25 for non-encrypted).', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="smtp_encryption"><?php esc_html_e( 'Encryption', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<select id="smtp_encryption" name="smtp_encryption">
+								<option value="none" <?php selected( get_option( 'spf_smtp_encryption', 'tls' ), 'none' ); ?>><?php esc_html_e( 'None', 'simple-post-form' ); ?></option>
+								<option value="tls" <?php selected( get_option( 'spf_smtp_encryption', 'tls' ), 'tls' ); ?>><?php esc_html_e( 'TLS', 'simple-post-form' ); ?></option>
+								<option value="ssl" <?php selected( get_option( 'spf_smtp_encryption', 'tls' ), 'ssl' ); ?>><?php esc_html_e( 'SSL', 'simple-post-form' ); ?></option>
+							</select>
+							<p class="description"><?php esc_html_e( 'Encryption method (TLS recommended for port 587).', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'SMTP Authentication', 'simple-post-form' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="smtp_auth" value="1" <?php checked( get_option( 'spf_smtp_auth', 1 ), 1 ); ?>>
+								<?php esc_html_e( 'Use SMTP authentication', 'simple-post-form' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Most SMTP servers require authentication.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="smtp_username"><?php esc_html_e( 'SMTP Username', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="text" id="smtp_username" name="smtp_username" value="<?php echo esc_attr( get_option( 'spf_smtp_username', '' ) ); ?>" class="regular-text" autocomplete="off">
+							<p class="description"><?php esc_html_e( 'Your SMTP username (usually your email address).', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="smtp_password"><?php esc_html_e( 'SMTP Password', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="password" id="smtp_password" name="smtp_password" value="<?php echo esc_attr( get_option( 'spf_smtp_password', '' ) ); ?>" class="regular-text" autocomplete="off">
+							<p class="description"><?php esc_html_e( 'Your SMTP password or app-specific password.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="smtp_from_email"><?php esc_html_e( 'From Email', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="email" id="smtp_from_email" name="smtp_from_email" value="<?php echo esc_attr( get_option( 'spf_smtp_from_email', '' ) ); ?>" class="regular-text">
+							<p class="description"><?php esc_html_e( 'Email address to send from (must be authorized by your SMTP server).', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label for="smtp_from_name"><?php esc_html_e( 'From Name', 'simple-post-form' ); ?></label>
+						</th>
+						<td>
+							<input type="text" id="smtp_from_name" name="smtp_from_name" value="<?php echo esc_attr( get_option( 'spf_smtp_from_name', '' ) ); ?>" class="regular-text">
+							<p class="description"><?php esc_html_e( 'Name to display in the From field.', 'simple-post-form' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<?php submit_button( __( 'Save Settings', 'simple-post-form' ), 'primary', 'spf_save_settings' ); ?>
+			</form>
+		</div>
+
+		<script type="text/javascript">
+			jQuery(document).ready(function($) {
+				if ($.fn.wpColorPicker) {
+					$('.spf-color-picker').wpColorPicker();
+				}
+			});
+		</script>
+		<?php
+	}
+
+	/**
+	 * AJAX delete submission.
+	 */
+	public function ajax_delete_submission() {
+		check_ajax_referer( 'spf-admin-nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'simple-post-form' ) ) );
+		}
+
+		$submission_id = isset( $_POST['submission_id'] ) ? absint( $_POST['submission_id'] ) : 0;
+
+		if ( ! $submission_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid submission ID.', 'simple-post-form' ) ) );
+		}
+
+		$result = simple_post_form()->delete_submission( $submission_id );
+
+		if ( $result ) {
+			wp_send_json_success( array( 'message' => __( 'Submission deleted successfully.', 'simple-post-form' ) ) );
+		} else {
+			wp_send_json_error( array( 'message' => __( 'Failed to delete submission.', 'simple-post-form' ) ) );
+		}
+	}
+
+	/**
+	 * AJAX unblock IP.
+	 */
+	public function ajax_unblock_ip() {
+		check_ajax_referer( 'spf-admin-nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'simple-post-form' ) ) );
+		}
+
+		$ip_address = isset( $_POST['ip_address'] ) ? sanitize_text_field( wp_unslash( $_POST['ip_address'] ) ) : '';
+
+		if ( empty( $ip_address ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid IP address.', 'simple-post-form' ) ) );
+		}
+
+		$result = simple_post_form()->unblock_ip( $ip_address );
+
+		if ( $result ) {
+			wp_send_json_success( array( 'message' => __( 'IP unblocked successfully.', 'simple-post-form' ) ) );
+		} else {
+			wp_send_json_error( array( 'message' => __( 'Failed to unblock IP.', 'simple-post-form' ) ) );
+		}
+	}
+
+	/**
+	 * AJAX block IP.
+	 */
+	public function ajax_block_ip() {
+		check_ajax_referer( 'spf-admin-nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'simple-post-form' ) ) );
+		}
+
+		$ip_address = isset( $_POST['ip_address'] ) ? sanitize_text_field( wp_unslash( $_POST['ip_address'] ) ) : '';
+		$reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : 'Manually blocked';
+		$duration = isset( $_POST['duration'] ) ? absint( $_POST['duration'] ) : 0;
+
+		if ( empty( $ip_address ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid IP address.', 'simple-post-form' ) ) );
+		}
+
+		$result = simple_post_form()->block_ip( $ip_address, $reason, $duration );
+
+		if ( $result ) {
+			wp_send_json_success( array( 'message' => __( 'IP blocked successfully.', 'simple-post-form' ) ) );
+		} else {
+			wp_send_json_error( array( 'message' => __( 'Failed to block IP.', 'simple-post-form' ) ) );
+		}
+	}
+
+	/**
+	 * Blocked IPs page.
+	 */
+	public function blocked_ips_page() {
+		$blocked_ips = simple_post_form()->get_blocked_ips();
+		
+		// Handle manual IP blocking
+		if ( isset( $_POST['spf_block_ip'] ) && check_admin_referer( 'spf-block-ip-nonce' ) ) {
+			$ip_to_block = sanitize_text_field( $_POST['ip_address'] ?? '' );
+			$block_reason = sanitize_text_field( $_POST['block_reason'] ?? 'Manually blocked' );
+			$block_type = sanitize_text_field( $_POST['block_type'] ?? 'permanent' );
+			$block_duration = absint( $_POST['block_duration'] ?? 0 );
+			
+			if ( ! empty( $ip_to_block ) ) {
+				$duration = $block_type === 'temporary' ? $block_duration : 0;
+				simple_post_form()->block_ip( $ip_to_block, $block_reason, $duration );
+				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'IP address blocked successfully!', 'simple-post-form' ) . '</p></div>';
+				$blocked_ips = simple_post_form()->get_blocked_ips(); // Refresh list
+			}
+		}
+		?>
+		<div class="wrap spf-wrap">
+			<h1><?php esc_html_e( 'Blocked IP Addresses', 'simple-post-form' ); ?></h1>
+			
+			<div class="card" style="max-width: 800px; margin: 20px 0;">
+				<h2><?php esc_html_e( 'Block New IP Address', 'simple-post-form' ); ?></h2>
+				<form method="post" action="">
+					<?php wp_nonce_field( 'spf-block-ip-nonce' ); ?>
+					<table class="form-table">
+						<tr>
+							<th scope="row">
+								<label for="ip_address"><?php esc_html_e( 'IP Address', 'simple-post-form' ); ?></label>
+							</th>
+							<td>
+								<input type="text" id="ip_address" name="ip_address" class="regular-text" required placeholder="192.168.1.1">
+							</td>
+						</tr>
+						<tr>
+							<th scope="row">
+								<label for="block_reason"><?php esc_html_e( 'Reason', 'simple-post-form' ); ?></label>
+							</th>
+							<td>
+								<input type="text" id="block_reason" name="block_reason" class="regular-text" placeholder="<?php esc_attr_e( 'Manually blocked', 'simple-post-form' ); ?>">
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Block Type', 'simple-post-form' ); ?></th>
+							<td>
+								<label>
+									<input type="radio" name="block_type" value="permanent" checked onchange="document.getElementById('block_duration').disabled = true;">
+									<?php esc_html_e( 'Permanent', 'simple-post-form' ); ?>
+								</label><br>
+								<label>
+									<input type="radio" name="block_type" value="temporary" onchange="document.getElementById('block_duration').disabled = false;">
+									<?php esc_html_e( 'Temporary', 'simple-post-form' ); ?>
+								</label>
+								<input type="number" id="block_duration" name="block_duration" value="60" min="1" style="width: 80px; margin-left: 10px;" disabled>
+								<span><?php esc_html_e( 'minutes', 'simple-post-form' ); ?></span>
+							</td>
+						</tr>
+					</table>
+					<?php submit_button( __( 'Block IP Address', 'simple-post-form' ), 'primary', 'spf_block_ip' ); ?>
+				</form>
+			</div>
+
+			<h2><?php esc_html_e( 'Currently Blocked IPs', 'simple-post-form' ); ?></h2>
+			
+			<?php if ( empty( $blocked_ips ) ) : ?>
+				<div class="spf-empty-state">
+					<p><?php esc_html_e( 'No blocked IP addresses.', 'simple-post-form' ); ?></p>
+				</div>
+			<?php else : ?>
+				<table class="wp-list-table widefat fixed striped">
+					<thead>
+						<tr>
+							<th><?php esc_html_e( 'IP Address', 'simple-post-form' ); ?></th>
+							<th><?php esc_html_e( 'Reason', 'simple-post-form' ); ?></th>
+							<th><?php esc_html_e( 'Type', 'simple-post-form' ); ?></th>
+							<th><?php esc_html_e( 'Blocked At', 'simple-post-form' ); ?></th>
+							<th><?php esc_html_e( 'Expires', 'simple-post-form' ); ?></th>
+							<th><?php esc_html_e( 'Actions', 'simple-post-form' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $blocked_ips as $blocked_ip ) : ?>
+							<tr>
+								<td><code><?php echo esc_html( $blocked_ip->ip_address ); ?></code></td>
+								<td><?php echo esc_html( $blocked_ip->block_reason ); ?></td>
+								<td>
+									<?php if ( $blocked_ip->is_permanent ) : ?>
+										<span class="dashicons dashicons-lock" style="color: #d63638;"></span>
+										<?php esc_html_e( 'Permanent', 'simple-post-form' ); ?>
+									<?php else : ?>
+										<span class="dashicons dashicons-clock" style="color: #dba617;"></span>
+										<?php esc_html_e( 'Temporary', 'simple-post-form' ); ?>
+									<?php endif; ?>
+								</td>
+								<td><?php echo esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $blocked_ip->blocked_at ) ) ); ?></td>
+								<td>
+									<?php
+									if ( $blocked_ip->is_permanent ) {
+										esc_html_e( 'Never', 'simple-post-form' );
+									} elseif ( $blocked_ip->blocked_until ) {
+										$expiry_time = strtotime( $blocked_ip->blocked_until );
+										if ( $expiry_time < time() ) {
+											echo '<span style="color: #999;">' . esc_html__( 'Expired', 'simple-post-form' ) . '</span>';
+										} else {
+											echo esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $expiry_time ) );
+										}
+									}
+									?>
+								</td>
+								<td>
+									<button class="button button-small spf-unblock-ip" data-ip="<?php echo esc_attr( $blocked_ip->ip_address ); ?>">
+										<?php esc_html_e( 'Unblock', 'simple-post-form' ); ?>
+									</button>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php endif; ?>
+		</div>
+		<?php
 	}
 }

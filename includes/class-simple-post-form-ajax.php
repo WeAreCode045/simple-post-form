@@ -29,6 +29,60 @@ class Simple_Post_Form_Ajax {
 		check_ajax_referer( 'spf-frontend-nonce', 'nonce' );
 
 		$form_id = isset( $_POST['form_id'] ) ? intval( $_POST['form_id'] ) : 0;
+		$user_ip = simple_post_form()->get_user_ip();
+		
+		// Check if IP is blocked
+		if ( simple_post_form()->is_ip_blocked( $user_ip ) ) {
+			$spam_data = array( 'blocked_reason' => 'IP address is blocked' );
+			if ( $form_id ) {
+				simple_post_form()->save_submission( $form_id, $spam_data, true );
+			}
+			wp_send_json_error( array( 'message' => __( 'Your IP address has been blocked from submitting forms.', 'simple-post-form' ) ) );
+		}
+		
+		// Check rate limit
+		if ( $form_id && get_option( 'spf_rate_limit_enabled' ) ) {
+			if ( simple_post_form()->check_rate_limit( $user_ip, $form_id ) ) {
+				// Block IP temporarily
+				$block_duration = get_option( 'spf_rate_limit_block_duration', 60 );
+				simple_post_form()->block_ip( $user_ip, 'Rate limit exceeded', $block_duration );
+				
+				$spam_data = array( 'blocked_reason' => 'Rate limit exceeded' );
+				simple_post_form()->save_submission( $form_id, $spam_data, true );
+				
+				wp_send_json_error( array( 'message' => __( 'Too many submissions. Please try again later.', 'simple-post-form' ) ) );
+			}
+		}
+		
+		// Check country blocking
+		if ( get_option( 'spf_country_blocking_enabled' ) ) {
+			$blocked_countries = get_option( 'spf_blocked_countries', '' );
+			if ( ! empty( $blocked_countries ) ) {
+				$country = simple_post_form()->get_country_from_ip( $user_ip );
+				$blocked_list = array_map( 'trim', explode( ',', strtoupper( $blocked_countries ) ) );
+				
+				if ( in_array( strtoupper( $country ), $blocked_list ) ) {
+					$spam_data = array( 'blocked_reason' => 'Country blocked: ' . $country );
+					if ( $form_id ) {
+						simple_post_form()->save_submission( $form_id, $spam_data, true );
+					}
+					wp_send_json_error( array( 'message' => __( 'Submissions from your country are not allowed.', 'simple-post-form' ) ) );
+				}
+			}
+		}
+		
+		// Check honeypot field - if filled, it's spam
+		if ( ! empty( $_POST['email'] ) ) {
+			// Save as spam submission
+			if ( $form_id ) {
+				$spam_data = array( 'blocked_reason' => 'Honeypot field filled' );
+				simple_post_form()->save_submission( $form_id, $spam_data, true );
+			}
+			// Silently succeed for bots
+			wp_send_json_success( array(
+				'message' => __( 'Form submitted successfully!', 'simple-post-form' ),
+			) );
+		}
 
 		if ( ! $form_id ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid form ID.', 'simple-post-form' ) ) );
@@ -104,6 +158,21 @@ class Simple_Post_Form_Ajax {
 			$headers[] = 'From: ' . $form->sender_name . ' <' . $form->sender_email . '>';
 		} elseif ( ! empty( $form->sender_email ) ) {
 			$headers[] = 'From: ' . $form->sender_email;
+		}
+
+		// Add Reply-To header if enabled
+		if ( ! empty( $form->use_reply_to ) && $form->use_reply_to == 1 ) {
+			// Find the first email field value
+			foreach ( $fields as $field ) {
+				if ( $field->field_type === 'email' ) {
+					$field_name = 'spf_field_' . $field->id;
+					$email_value = isset( $_POST[ $field_name ] ) ? sanitize_email( wp_unslash( $_POST[ $field_name ] ) ) : '';
+					if ( ! empty( $email_value ) && is_email( $email_value ) ) {
+						$headers[] = 'Reply-To: ' . $email_value;
+						break;
+					}
+				}
+			}
 		}
 
 		// Save submission to database
